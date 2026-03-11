@@ -1,0 +1,3 @@
+DROP INDEX idx_payment_reminders_from_user;
+DROP INDEX idx_payment_reminders_to_user;
+DROP TABLE payment_reminders;

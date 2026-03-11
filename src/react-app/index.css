@@ -1,0 +1,336 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 220 20% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 10%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 220 20% 10%;
+    --muted: 220 14% 92%;
+    --muted-foreground: 220 10% 45%;
+    --accent: 168 85% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 14% 88%;
+    --input: 220 14% 88%;
+    --ring: 262 83% 58%;
+    --radius: 0.5rem;
+    --neon-cyan: 168 85% 50%;
+    --neon-purple: 280 100% 65%;
+    --neon-green: 145 80% 50%;
+    --gold: 45 100% 50%;
+    
+    /* Tornasol gradient colors */
+    --iridescent-green: 160 80% 55%;
+    --iridescent-blue: 200 90% 55%;
+    --iridescent-pink: 330 85% 65%;
+  }
+
+  .dark {
+    /* 60% - Negro Ónix base */
+    --background: 0 0% 5%;
+    --foreground: 0 0% 95%;
+    
+    /* Glassmorphism cards */
+    --card: 0 0% 100% / 0.05;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 95%;
+    
+    /* 30% - Tornasol primary */
+    --primary: 200 90% 55%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 0 0% 100% / 0.08;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 0 0% 100% / 0.06;
+    --muted-foreground: 0 0% 60%;
+    --accent: 160 80% 55%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 100% / 0.1;
+    --input: 0 0% 100% / 0.08;
+    --ring: 200 90% 55%;
+    
+    /* Neon accents */
+    --neon-cyan: 168 85% 50%;
+    --neon-purple: 280 100% 65%;
+    --neon-green: 145 80% 50%;
+    
+    /* 10% - Gold for exclusive details */
+    --gold: 45 100% 55%;
+    
+    /* Tornasol gradient colors */
+    --iridescent-green: 160 80% 55%;
+    --iridescent-blue: 200 90% 55%;
+    --iridescent-pink: 330 85% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Inter", system-ui, sans-serif;
+    background-color: #0D0D0D;
+    /* Safe area padding for notched devices */
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  .dark body,
+  body.dark {
+    background-color: #0D0D0D;
+  }
+
+  button:not([disabled]),
+  [role="button"]:not([disabled]) {
+    cursor: pointer;
+  }
+
+  /* Touch-friendly tap targets */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Smooth scrolling for native feel */
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent pull-to-refresh on Android */
+  body {
+    overscroll-behavior-y: contain;
+  }
+}
+
+@layer components {
+  /* Glassmorphism card */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Tornasol/Iridescent gradient button */
+  .btn-iridescent {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--iridescent-green)),
+      hsl(var(--iridescent-blue)),
+      hsl(var(--iridescent-pink))
+    );
+    background-size: 200% 200%;
+    animation: iridescent-shift 3s ease infinite;
+    color: white;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
+  .btn-iridescent:hover {
+    background-size: 300% 300%;
+    box-shadow: 
+      0 0 20px hsl(var(--iridescent-blue) / 0.5),
+      0 0 40px hsl(var(--iridescent-pink) / 0.3);
+  }
+
+  /* Aurora mesh gradient background */
+  .aurora-bg {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .aurora-bg::before {
+    content: '';
+    position: absolute;
+    inset: -50%;
+    background: 
+      radial-gradient(ellipse at 20% 30%, hsl(var(--iridescent-green) / 0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, hsl(var(--iridescent-blue) / 0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 60% 80%, hsl(var(--iridescent-pink) / 0.12) 0%, transparent 50%);
+    animation: aurora-pulse 8s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .aurora-bg > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Subtle aurora for cards */
+  .aurora-subtle::before {
+    opacity: 0.6;
+  }
+
+  /* Gold accent for exclusive elements */
+  .gold-accent {
+    color: hsl(var(--gold));
+    text-shadow: 0 0 10px hsl(var(--gold) / 0.4);
+  }
+
+  .gold-border {
+    border-color: hsl(var(--gold) / 0.5);
+  }
+}
+
+@layer utilities {
+  .glow-cyan {
+    box-shadow: 0 0 20px hsl(var(--neon-cyan) / 0.4),
+                0 0 40px hsl(var(--neon-cyan) / 0.2);
+  }
+  
+  .glow-purple {
+    box-shadow: 0 0 20px hsl(var(--neon-purple) / 0.4),
+                0 0 40px hsl(var(--neon-purple) / 0.2);
+  }
+  
+  .glow-green {
+    box-shadow: 0 0 20px hsl(var(--neon-green) / 0.4),
+                0 0 40px hsl(var(--neon-green) / 0.2);
+  }
+
+  .glow-iridescent {
+    box-shadow: 
+      0 0 20px hsl(var(--iridescent-green) / 0.3),
+      0 0 40px hsl(var(--iridescent-blue) / 0.2),
+      0 0 60px hsl(var(--iridescent-pink) / 0.15);
+  }
+  
+  .text-glow-cyan {
+    text-shadow: 0 0 10px hsl(var(--neon-cyan) / 0.5);
+  }
+  
+  .text-glow-green {
+    text-shadow: 0 0 10px hsl(var(--neon-green) / 0.5);
+  }
+
+  .text-gold {
+    color: hsl(var(--gold));
+  }
+
+  .bg-onyx {
+    background-color: #0D0D0D;
+  }
+
+  /* Gradient text for iridescent effect */
+  .text-iridescent {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--iridescent-green)),
+      hsl(var(--iridescent-blue)),
+      hsl(var(--iridescent-pink))
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
+
+@keyframes iridescent-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes aurora-pulse {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  33% {
+    transform: translate(2%, -2%) scale(1.02);
+    opacity: 0.8;
+  }
+  66% {
+    transform: translate(-1%, 1%) scale(0.98);
+    opacity: 0.9;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+/* Safe area utilities */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-left {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.safe-right {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.safe-x {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.safe-y {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-all {
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
+/* Native-like touch feedback */
+.touch-feedback {
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+
+.touch-feedback:active {
+  transform: scale(0.97);
+  opacity: 0.8;
+}
+
+/* Prevent text selection on interactive elements */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Hardware accelerated animations */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform;
+}

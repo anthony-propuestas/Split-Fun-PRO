@@ -1,0 +1,3 @@
+DROP INDEX idx_user_achievements_key;
+DROP INDEX idx_user_achievements_user_id;
+DROP TABLE user_achievements;

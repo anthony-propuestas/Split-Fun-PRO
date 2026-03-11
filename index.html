@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+  <head>
+    <meta charset="UTF-8"/>
+    <link rel="icon" type="image/png" href="https://019c8165-c866-7049-81dc-366b06644ca0.mochausercontent.com/1000068568.png"/>
+    <link rel="apple-touch-icon" href="https://019c8165-c866-7049-81dc-366b06644ca0.mochausercontent.com/1000068568.png"/>
+    <meta property="og:image" content="https://019c8165-c866-7049-81dc-366b06644ca0.mochausercontent.com/1000068568.png"/>
+    
+    <!-- Mobile viewport with safe area support -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"/>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json"/>
+    <meta name="theme-color" content="#0D0D0D"/>
+    <meta name="apple-mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+    <meta name="apple-mobile-web-app-title" content="Split Fun"/>
+    <meta name="mobile-web-app-capable" content="yes"/>
+    
+    <!-- Android/Capacitor specific -->
+    <meta name="format-detection" content="telephone=no"/>
+    <meta name="msapplication-tap-highlight" content="no"/>
+    <meta name="color-scheme" content="dark"/>
+    
+    <!-- Prevent text selection and callouts on mobile -->
+    <style>
+      /* Capacitor/WebView optimizations */
+      html, body {
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+      }
+      
+      /* Safe area padding for notched devices */
+      :root {
+        --safe-area-inset-top: env(safe-area-inset-top, 0px);
+        --safe-area-inset-right: env(safe-area-inset-right, 0px);
+        --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-area-inset-left: env(safe-area-inset-left, 0px);
+      }
+      
+      /* Splash screen */
+      #splash-screen {
+        position: fixed;
+        inset: 0;
+        background: #0D0D0D;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.3s ease-out;
+      }
+      
+      #splash-screen.fade-out {
+        opacity: 0;
+        pointer-events: none;
+      }
+      
+      #splash-screen img {
+        width: 120px;
+        height: 120px;
+        animation: pulse-logo 1.5s ease-in-out infinite;
+      }
+      
+      @keyframes pulse-logo {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.05); opacity: 0.8; }
+      }
+    </style>
+    
+    <title>Split Fun</title>
+    <meta name="description" content="Divide gastos con amigos, familia y compañeros de forma simple y elegante. Cobra con memes de Don Barriga!"/>
+    <meta property="og:title" content="Split Fun"/>
+    <meta property="og:description" content="Divide gastos con amigos, familia y compañeros de forma simple y elegante"/>
+    
+    <!-- Preconnect for faster loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin"/>
+    <link rel="preconnect" href="https://019c8165-c866-7049-81dc-366b06644ca0.mochausercontent.com"/>
+    
+    <!-- Preload critical font -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  </head>
+  <body>
+    <!-- Native splash screen -->
+    <div id="splash-screen">
+      <img src="https://019c8165-c866-7049-81dc-366b06644ca0.mochausercontent.com/1000068568.png" alt="Split Fun"/>
+    </div>
+    
+    <div id="root"></div>
+    <script type="module" src="/src/react-app/main.tsx"></script>
+  </body>
+</html>
