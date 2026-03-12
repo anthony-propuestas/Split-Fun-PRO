@@ -9,9 +9,7 @@ export default defineConfig({
 	  plugins: [
 	    ...mochaPlugins(process.env as any),
 	    react(),
-	    cloudflare({
-	      auxiliaryWorkers: [{ configPath: "/mocha/emails-service/wrangler.json" }],
-	    }),
+	    cloudflare(),
 	  ],
 	  server: {
 	    allowedHosts: true,
