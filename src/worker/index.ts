@@ -1161,4 +1161,16 @@ app.post("/api/achievements/check", authMiddleware, async (c) => {
   return c.json({ newlyUnlocked });
 });
 
-export default app;
+export default {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async fetch(request: any, env: Env, ctx: any): Promise<any> {
+    const url = new URL(request.url);
+    // Route /api/* requests through the Hono app
+    if (url.pathname.startsWith("/api/")) {
+      return app.fetch(request, env, ctx);
+    }
+    // For all other routes, serve the React SPA static assets
+    // This is required in Pages Advanced Mode (env.ASSETS is the Pages static binding)
+    return env.ASSETS.fetch(request);
+  },
+};

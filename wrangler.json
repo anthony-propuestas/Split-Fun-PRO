@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "019c8165-c866-7049-81dc-366b06644ca0",
-  "main": "./src/worker/index.ts",
+  "name": "split-fun-pro",
+  "pages_build_output_dir": "./dist",
   "compatibility_date": "2025-06-17",
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
