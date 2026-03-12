@@ -41,8 +41,9 @@
   },
   "scripts": {
     "build": "tsc -b && vite build",
+    "postbuild": "node -e \"const fs=require('fs'); fs.rmSync('dist/wrangler.json', {force:true}); fs.rmSync('.wrangler/deploy/config.json', {force:true});\"",
     "cf-typegen": "wrangler types",
-    "check": "tsc && vite build && wrangler pages deploy dist --dry-run",
+    "check": "npm run build && wrangler pages deploy dist",
     "deploy": "npm run build && wrangler pages deploy dist",
     "dev": "vite",
     "knip": "knip",

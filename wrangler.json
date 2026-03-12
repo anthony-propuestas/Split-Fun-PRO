@@ -8,9 +8,6 @@
     "enabled": true
   },
   "upload_source_maps": true,
-  "assets": {
-    "not_found_handling": "single-page-application"
-  },
   "d1_databases": [
     {
       "binding": "DB",
