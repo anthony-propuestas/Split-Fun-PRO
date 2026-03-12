@@ -1,12 +1,24 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/context/AuthContext";
+import { GoogleOneTap } from "@/react-app/components/GoogleOneTap";
 import { Button } from "@/react-app/components/ui/button";
 import { Bell, Trophy, Users, Zap } from "lucide-react";
 
 export default function Login() {
-  const { user, isPending, redirectToLogin } = useAuth();
+  const { user, isPending, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const handleGoogleCredential = async (credential: string) => {
+    try {
+      setAuthError(null);
+      await signInWithGoogle(credential);
+    } catch (err) {
+      setAuthError("Error al iniciar sesión. Intenta de nuevo.");
+      console.error("Google sign-in error:", err);
+    }
+  };
 
   useEffect(() => {
     if (user && !isPending) {
@@ -61,6 +73,11 @@ export default function Login() {
         <div className="absolute -top-1/4 -right-1/4 w-full h-full bg-gradient-radial from-iridescent-blue/15 via-transparent to-transparent animate-aurora-pulse" style={{ animationDelay: '-3s' }} />
         <div className="absolute -bottom-1/4 left-1/4 w-full h-full bg-gradient-radial from-iridescent-pink/10 via-transparent to-transparent animate-aurora-pulse" style={{ animationDelay: '-5s' }} />
       </div>
+
+      {/* Google One Tap — prompt appears automatically when user isn't signed in */}
+      {!user && !isPending && (
+        <GoogleOneTap onSuccess={handleGoogleCredential} />
+      )}
 
       {/* Header */}
       <header className="border-b border-white/10 relative z-10">
@@ -121,8 +138,15 @@ export default function Login() {
                   <p className="text-muted-foreground">Tus amigos te deben dinero... 👀</p>
                 </div>
                 
+                {authError && (
+                  <p className="text-sm text-red-400 text-center">{authError}</p>
+                )}
+
                 <Button
-                  onClick={redirectToLogin}
+                  onClick={() => {
+                    // Opens Google One Tap manually if not auto-triggered
+                    window.google?.accounts.id.prompt();
+                  }}
                   className="w-full h-12 btn-iridescent glow-iridescent"
                 >
                   <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">

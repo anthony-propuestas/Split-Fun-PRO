@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Navigate } from "react-router";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/context/AuthContext";
 
 interface ProtectedRouteProps {
   children: ReactNode;

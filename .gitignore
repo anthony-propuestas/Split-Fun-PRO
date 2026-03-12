@@ -1,5 +1,21 @@
+# Build output
 dist/
 node_modules/
 .wrangler/
+
+# ── Secrets & environment variables ──────────────────────────────────────────
+# Never commit these — they contain API keys, client IDs, and secrets
+.env
+.env.local
+.env.*.local
 .dev.vars
+
+# ── Cloudflare generated files ────────────────────────────────────────────────
 worker-configuration.d.ts
+
+# ── OS / IDE ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/settings.json
+*.log

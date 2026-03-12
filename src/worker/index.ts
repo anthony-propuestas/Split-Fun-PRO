@@ -1,18 +1,62 @@
 import { Hono } from "hono";
+import { createMiddleware } from "hono/factory";
 import { getCookie, setCookie } from "hono/cookie";
-import {
-  exchangeCodeForSessionToken,
-  getOAuthRedirectUrl,
-  authMiddleware,
-  deleteSession,
-  MOCHA_SESSION_TOKEN_COOKIE_NAME,
-} from "@getmocha/users-service/backend";
 
-type Env = any;
+// ── Cloudflare bindings ──────────────────────────────────────────────────────
+interface D1PreparedStatement {
+  bind(...values: unknown[]): D1PreparedStatement;
+  first<T = unknown>(colName?: string): Promise<T | null>;
+  all<T = unknown>(): Promise<{ results: T[]; success: boolean; meta: { last_row_id?: number } }>;
+  run(): Promise<{ success: boolean; meta: { last_row_id?: number } }>;
+}
+interface D1Database {
+  prepare(query: string): D1PreparedStatement;
+}
+interface R2Bucket {
+  put(key: string, value: unknown): Promise<void>;
+  get(key: string): Promise<unknown>;
+  delete(key: string): Promise<void>;
+}
+interface Env {
+  DB: D1Database;
+  R2_BUCKET: R2Bucket;
+  ASSETS: { fetch(req: Request): Promise<Response> };
+  GOOGLE_CLIENT_ID: string; // Set via Cloudflare dashboard or .dev.vars
+}
 
-const app = new Hono<{ Bindings: Env }>();
+// ── Auth types ────────────────────────────────────────────────────────────────
+interface AuthUser {
+  id: string;
+  email?: string;
+  google_user_data?: { name?: string; picture?: string };
+}
+type Variables = { user: AuthUser };
 
-// Generate a deterministic friend code based on user_id (6 chars, alphanumeric, uppercase)
+const SESSION_COOKIE = "sf_session";
+
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+// ── Auth middleware ───────────────────────────────────────────────────────────
+const authMiddleware = createMiddleware<{ Bindings: Env; Variables: Variables }>(
+  async (c, next) => {
+    const userId = getCookie(c, SESSION_COOKIE);
+    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+    const profile = await c.env.DB.prepare(
+      "SELECT user_id, display_name FROM user_profiles WHERE user_id = ?"
+    ).bind(userId).first<{ user_id: string; display_name: string }>();
+
+    c.set("user", {
+      id: userId,
+      email: undefined,
+      google_user_data: profile ? { name: profile.display_name } : undefined,
+    });
+
+    await next();
+  }
+);
+
+
 // This ensures the same user gets the same friend code in dev and prod environments
 function generateFriendCode(userId: string): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed confusing chars like 0,O,1,I
@@ -38,32 +82,78 @@ function generateFriendCode(userId: string): string {
   return code;
 }
 
-// OAuth redirect URL
-app.get("/api/oauth/google/redirect_url", async (c) => {
-  const redirectUrl = await getOAuthRedirectUrl("google", {
-    apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-    apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-  });
-  return c.json({ redirectUrl }, 200);
+// OAuth redirect — not implemented (removed Mocha, use One Tap instead)
+app.get("/api/oauth/google/redirect_url", (c) => {
+  return c.json({ error: "Use Google One Tap" }, 501);
 });
 
-// Exchange code for session token
+// Exchange Google One Tap credential for a session
 app.post("/api/sessions", async (c) => {
-  const body = await c.req.json();
-  if (!body.code) {
-    return c.json({ error: "No authorization code provided" }, 400);
+  const body = await c.req.json() as { credential?: string; code?: string };
+
+  if (!body.credential) {
+    return c.json({ error: "Google credential required" }, 400);
   }
-  const sessionToken = await exchangeCodeForSessionToken(body.code, {
-    apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-    apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-  });
-  setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, sessionToken, {
+
+  // Verify the Google JWT via Google's tokeninfo endpoint
+  const tokenRes = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?id_token=${body.credential}`
+  );
+  if (!tokenRes.ok) {
+    return c.json({ error: "Invalid Google credential" }, 401);
+  }
+
+  const tokenInfo = await tokenRes.json() as {
+    sub: string;
+    email?: string;
+    name?: string;
+    picture?: string;
+    aud: string;
+  };
+
+  // Verify this token was issued for our app
+  if (tokenInfo.aud !== c.env.GOOGLE_CLIENT_ID) {
+    return c.json({ error: "Token audience mismatch" }, 401);
+  }
+
+  const userId = tokenInfo.sub; // Google's permanent unique user ID
+
+  // Create user profile if it doesn't exist yet
+  const existingProfile = await c.env.DB.prepare(
+    "SELECT user_id FROM user_profiles WHERE user_id = ?"
+  ).bind(userId).first<{ user_id: string }>();
+
+  if (!existingProfile) {
+    let friendCode = generateFriendCode(userId);
+    let attempts = 0;
+    while (attempts < 10) {
+      const taken = await c.env.DB.prepare(
+        "SELECT user_id FROM user_profiles WHERE friend_code = ?"
+      ).bind(friendCode).first();
+      if (!taken) {
+        await c.env.DB.prepare(
+          "INSERT INTO user_profiles (user_id, friend_code, display_name) VALUES (?, ?, ?)"
+        ).bind(
+          userId,
+          friendCode,
+          tokenInfo.name || tokenInfo.email?.split("@")[0] || "Usuario"
+        ).run();
+        break;
+      }
+      attempts++;
+      friendCode = generateFriendCode(userId + attempts);
+    }
+  }
+
+  // Set session cookie (user_id acts as the session token)
+  setCookie(c, SESSION_COOKIE, userId, {
     httpOnly: true,
     path: "/",
     sameSite: "none",
     secure: true,
-    maxAge: 60 * 24 * 60 * 60,
+    maxAge: 60 * 24 * 60 * 60, // 60 days
   });
+
   return c.json({ success: true }, 200);
 });
 
@@ -108,15 +198,8 @@ app.get("/api/users/me", authMiddleware, async (c) => {
 });
 
 // Logout
-app.get("/api/logout", async (c) => {
-  const sessionToken = getCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME);
-  if (typeof sessionToken === "string") {
-    await deleteSession(sessionToken, {
-      apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-      apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-    });
-  }
-  setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, "", {
+app.get("/api/logout", (c) => {
+  setCookie(c, SESSION_COOKIE, "", {
     httpOnly: true,
     path: "/",
     sameSite: "none",
@@ -694,7 +777,7 @@ app.get("/api/groups/:id/expenses", authMiddleware, async (c) => {
 
   const membership = await c.env.DB.prepare(`
     SELECT id FROM group_members WHERE group_id = ? AND user_id = ?
-  `).bind(groupId, user.id).first();
+  `).bind(groupId, user.id).first<{ id: number }>();
 
   if (!membership) {
     return c.json({ error: "Not a member of this group" }, 403);

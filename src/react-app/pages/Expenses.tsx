@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { Plus, Receipt } from "lucide-react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/context/AuthContext";
 import { Button } from "@/react-app/components/ui/button";
 import AppLayout from "@/react-app/components/layout/AppLayout";
 

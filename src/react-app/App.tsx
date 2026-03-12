@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router";
-import { AuthProvider } from "@getmocha/users-service/react";
+import { AuthProvider } from "@/react-app/context/AuthContext";
 import ProtectedRoute from "@/react-app/components/ProtectedRoute";
 import OfflineIndicator from "@/react-app/components/OfflineIndicator";
 import NativeWrapper from "@/react-app/components/NativeWrapper";

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/context/AuthContext";
 import { Button } from "@/react-app/components/ui/button";
 import { Bell, Trophy, Users, Zap, Sparkles } from "lucide-react";
 

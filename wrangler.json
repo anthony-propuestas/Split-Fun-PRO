@@ -24,14 +24,5 @@
 	      "bucket_name": "019c8165-c866-7049-81dc-366b06644ca0"
 	    }
 	  ],
-	  "services": [
-	    {
-	      "binding": "EMAILS",
-	      "service": "emails-service",
-	      "entrypoint": "EmailService",
-	      "props": {
-	        "appId": "019c8165-c866-7049-81dc-366b06644ca0"
-	      }
-	    }
-	  ]
 	}
+

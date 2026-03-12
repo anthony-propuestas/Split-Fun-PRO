@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router";
 import { ArrowLeft, Check, Loader2 } from "lucide-react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/context/AuthContext";
 import { Button } from "@/react-app/components/ui/button";
 import { Input } from "@/react-app/components/ui/input";
 import { Label } from "@/react-app/components/ui/label";

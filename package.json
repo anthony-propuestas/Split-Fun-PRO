@@ -21,9 +21,6 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.12.0",
-    "@eslint/js": "9.25.1",
-    "@getmocha/vite-plugins": "^3.0.19",
-    "@getmocha/users-service": "^0.0.4",
     "@types/node": "22.14.1",
     "@types/react": "19.0.10",
     "@types/react-dom": "19.0.4",
@@ -45,7 +42,8 @@
   "scripts": {
     "build": "tsc -b && vite build",
     "cf-typegen": "wrangler types",
-    "check": "tsc && vite build && wrangler deploy --dry-run",
+    "check": "tsc && vite build && wrangler pages deploy dist --dry-run",
+    "deploy": "npm run build && wrangler pages deploy dist",
     "dev": "vite",
     "knip": "knip",
     "lint": "eslint ."

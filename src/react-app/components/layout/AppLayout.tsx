@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import { Users, Receipt, Home, Plus, LogOut, User, Bell, Trophy } from "lucide-react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/context/AuthContext";
 import { Button } from "@/react-app/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/react-app/components/ui/avatar";
 

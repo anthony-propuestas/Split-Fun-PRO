@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Copy, Check, User, Sparkles } from "lucide-react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/context/AuthContext";
 import { Button } from "@/react-app/components/ui/button";
 import { Input } from "@/react-app/components/ui/input";
 import AppLayout from "@/react-app/components/layout/AppLayout";
