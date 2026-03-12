@@ -11,6 +11,7 @@ declare global {
             callback: (response: { credential: string }) => void;
             auto_select?: boolean;
             cancel_on_tap_outside?: boolean;
+            use_fedcm_for_prompt?: boolean;
           }) => void;
           prompt: (notification?: (notification: { isNotDisplayed: () => boolean; isSkippedMoment: () => boolean }) => void) => void;
           renderButton: (parent: HTMLElement, options: object) => void;
@@ -44,6 +45,7 @@ export function GoogleOneTap({ onSuccess, onError }: GoogleOneTapProps) {
         },
         auto_select: true,
         cancel_on_tap_outside: false,
+        use_fedcm_for_prompt: true,
       });
 
       window.google?.accounts.id.prompt((notification) => {
@@ -95,6 +97,7 @@ export function GoogleSignInButton({ onSuccess, className }: GoogleSignInButtonP
     window.google.accounts.id.initialize({
       client_id: clientId,
       callback: (response) => onSuccess(response.credential),
+      use_fedcm_for_prompt: true,
     });
 
     window.google.accounts.id.renderButton(container, {
