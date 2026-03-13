@@ -31,7 +31,6 @@ export interface GsiInitializerProps {
 
 /** Inicializa GSI una sola vez con el callback dado. No muestra prompt automático (evita cool down y FedCM). */
 export function GsiInitializer({ onSuccess }: GsiInitializerProps) {
-  const [ready, setReady] = useState(!!window.google?.accounts?.id);
   const onSuccessRef = useRef(onSuccess);
   onSuccessRef.current = onSuccess;
 
@@ -66,7 +65,6 @@ export function GsiInitializer({ onSuccess }: GsiInitializerProps) {
         });
         (window as unknown as { [GSI_INITIALIZED_KEY]: string })[GSI_INITIALIZED_KEY] = clientId;
       }
-      setReady(true);
     };
 
     if (window.google?.accounts?.id) {
