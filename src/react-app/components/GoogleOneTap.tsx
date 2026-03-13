@@ -55,7 +55,10 @@ export function GoogleOneTap({ onSuccess, onError }: GoogleOneTapProps) {
           },
           auto_select: true,
           cancel_on_tap_outside: false,
-          use_fedcm_for_prompt: true,
+          // Desactivamos FedCM explícitamente para evitar errores de navegador
+          // como "FedCM get() rejects with NetworkError" cuando el soporte
+          // está deshabilitado o bloqueado en las preferencias del usuario.
+          use_fedcm_for_prompt: false,
         });
         (window as unknown as { [GSI_INITIALIZED_KEY]: string })[GSI_INITIALIZED_KEY] = clientId;
       }
@@ -106,7 +109,8 @@ export function GoogleSignInButton({ onSuccess, className }: GoogleSignInButtonP
     window.google.accounts.id.initialize({
       client_id: clientId,
       callback: (response) => onSuccess(response.credential),
-      use_fedcm_for_prompt: true,
+      // Igual que en One Tap, evitamos forzar FedCM
+      use_fedcm_for_prompt: false,
     });
 
     window.google.accounts.id.renderButton(container, {
