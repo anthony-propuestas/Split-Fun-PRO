@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Google Identity Services types
 declare global {
@@ -13,25 +13,36 @@ declare global {
             cancel_on_tap_outside?: boolean;
             use_fedcm_for_prompt?: boolean;
           }) => void;
-          prompt: (notification?: (notification: { isNotDisplayed: () => boolean; isSkippedMoment: () => boolean }) => void) => void;
           renderButton: (parent: HTMLElement, options: object) => void;
-          disableAutoSelect: () => void;
         };
       };
     };
   }
 }
 
-interface GoogleOneTapProps {
-  onSuccess: (credential: string) => void;
-  onError?: () => void;
-}
-
 const GSI_INITIALIZED_KEY = "gsi_initialized_client_id";
 
-export function GoogleOneTap({ onSuccess, onError }: GoogleOneTapProps) {
-  const callbackRef = useRef({ onSuccess, onError });
-  callbackRef.current = { onSuccess, onError };
+// Ref compartido: el callback que recibe la credential (actualizado por la página montada)
+const credentialHandlerRef: { current: ((credential: string) => void) | null } = { current: null };
+
+export interface GsiInitializerProps {
+  onSuccess: (credential: string) => void;
+}
+
+/** Inicializa GSI una sola vez con el callback dado. No muestra prompt automático (evita cool down y FedCM). */
+export function GsiInitializer({ onSuccess }: GsiInitializerProps) {
+  const [ready, setReady] = useState(!!window.google?.accounts?.id);
+  const onSuccessRef = useRef(onSuccess);
+  onSuccessRef.current = onSuccess;
+
+  useEffect(() => {
+    credentialHandlerRef.current = (credential: string) => {
+      onSuccessRef.current(credential);
+    };
+    return () => {
+      credentialHandlerRef.current = null;
+    };
+  }, [onSuccess]);
 
   useEffect(() => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -40,9 +51,7 @@ export function GoogleOneTap({ onSuccess, onError }: GoogleOneTapProps) {
       return;
     }
 
-    let script: HTMLScriptElement | null = null;
-
-    const initOneTap = () => {
+    const initOnce = () => {
       if (!window.google?.accounts?.id) return;
 
       const alreadyInitialized =
@@ -51,67 +60,61 @@ export function GoogleOneTap({ onSuccess, onError }: GoogleOneTapProps) {
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: (response) => {
-            callbackRef.current.onSuccess(response.credential);
+            credentialHandlerRef.current?.(response.credential);
           },
-          auto_select: true,
-          cancel_on_tap_outside: false,
-          // Desactivamos FedCM explícitamente para evitar errores de navegador
-          // como "FedCM get() rejects with NetworkError" cuando el soporte
-          // está deshabilitado o bloqueado en las preferencias del usuario.
           use_fedcm_for_prompt: false,
         });
         (window as unknown as { [GSI_INITIALIZED_KEY]: string })[GSI_INITIALIZED_KEY] = clientId;
       }
-
-      // Llamamos al prompt sin usar los métodos de \"status\" legacy (isNotDisplayed/isSkippedMoment)
-      // para alinearnos mejor con las recomendaciones de FedCM.
-      window.google.accounts.id.prompt();
+      setReady(true);
     };
 
     if (window.google?.accounts?.id) {
-      initOneTap();
-      return () => {
-        window.google?.accounts.id.disableAutoSelect();
-      };
+      initOnce();
+      return;
     }
 
-    script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = initOneTap;
-    document.head.appendChild(script);
-
-    return () => {
-      window.google?.accounts.id.disableAutoSelect();
-    };
+    const interval = setInterval(() => {
+      if (window.google?.accounts?.id) {
+        clearInterval(interval);
+        initOnce();
+      }
+    }, 100);
+    return () => clearInterval(interval);
   }, []);
 
-  // The One Tap prompt is rendered by Google — no DOM element needed
   return null;
 }
 
-interface GoogleSignInButtonProps {
-  onSuccess: (credential: string) => void;
+export interface GoogleSignInButtonProps {
+  id: string;
   className?: string;
 }
 
-/** Renders Google's branded sign-in button (alternative to One Tap prompt) */
-export function GoogleSignInButton({ onSuccess, className }: GoogleSignInButtonProps) {
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+/** Botón oficial de Google (renderButton). Requiere que GsiInitializer esté montado antes. */
+export function GoogleSignInButton({ id, className }: GoogleSignInButtonProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(!!window.google?.accounts?.id);
 
   useEffect(() => {
-    if (!clientId || !window.google) return;
+    if (!window.google?.accounts?.id) {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(interval);
+          setReady(true);
+        }
+      }, 100);
+      return () => clearInterval(interval);
+    }
+    setReady(true);
+  }, []);
 
-    const container = document.getElementById("google-signin-btn");
-    if (!container) return;
+  useEffect(() => {
+    if (!ready || !containerRef.current || !window.google?.accounts?.id) return;
 
-    window.google.accounts.id.initialize({
-      client_id: clientId,
-      callback: (response) => onSuccess(response.credential),
-      // Igual que en One Tap, evitamos forzar FedCM
-      use_fedcm_for_prompt: false,
-    });
+    const container = containerRef.current;
+    // Limpiar contenido previo por si el componente se re-monta
+    container.innerHTML = "";
 
     window.google.accounts.id.renderButton(container, {
       type: "standard",
@@ -122,7 +125,7 @@ export function GoogleSignInButton({ onSuccess, className }: GoogleSignInButtonP
       logo_alignment: "left",
       width: 280,
     });
-  }, [clientId, onSuccess]);
+  }, [ready, id]);
 
-  return <div id="google-signin-btn" className={className} />;
+  return <div ref={containerRef} id={id} className={className} />;
 }
