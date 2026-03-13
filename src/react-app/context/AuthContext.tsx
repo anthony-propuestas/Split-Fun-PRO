@@ -31,6 +31,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isPending, setIsPending] = useState(true);
 
   useEffect(() => {
+    // Solo intentamos recuperar la sesión si ya existe la cookie de sesión.
+    // Esto evita llamadas 401 \"normales\" cuando el usuario nunca ha iniciado sesión.
+    const hasSessionCookie =
+      typeof document !== "undefined" &&
+      document.cookie.split(";").some((c) => c.trim().startsWith("sf_session="));
+
+    if (!hasSessionCookie) {
+      setIsPending(false);
+      return;
+    }
+
     fetchMe().then(setUser).finally(() => setIsPending(false));
   }, []);
 

@@ -45,7 +45,8 @@ export function GoogleOneTap({ onSuccess, onError }: GoogleOneTapProps) {
     const initOneTap = () => {
       if (!window.google?.accounts?.id) return;
 
-      const alreadyInitialized = (window as unknown as { [GSI_INITIALIZED_KEY]?: string })[GSI_INITIALIZED_KEY] === clientId;
+      const alreadyInitialized =
+        (window as unknown as { [GSI_INITIALIZED_KEY]?: string })[GSI_INITIALIZED_KEY] === clientId;
       if (!alreadyInitialized) {
         window.google.accounts.id.initialize({
           client_id: clientId,
@@ -59,11 +60,9 @@ export function GoogleOneTap({ onSuccess, onError }: GoogleOneTapProps) {
         (window as unknown as { [GSI_INITIALIZED_KEY]: string })[GSI_INITIALIZED_KEY] = clientId;
       }
 
-      window.google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          callbackRef.current.onError?.();
-        }
-      });
+      // Llamamos al prompt sin usar los métodos de \"status\" legacy (isNotDisplayed/isSkippedMoment)
+      // para alinearnos mejor con las recomendaciones de FedCM.
+      window.google.accounts.id.prompt();
     };
 
     if (window.google?.accounts?.id) {
