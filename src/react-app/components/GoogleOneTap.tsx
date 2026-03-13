@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 // Google Identity Services types
 declare global {
@@ -27,7 +27,12 @@ interface GoogleOneTapProps {
   onError?: () => void;
 }
 
+const GSI_INITIALIZED_KEY = "gsi_initialized_client_id";
+
 export function GoogleOneTap({ onSuccess, onError }: GoogleOneTapProps) {
+  const callbackRef = useRef({ onSuccess, onError });
+  callbackRef.current = { onSuccess, onError };
+
   useEffect(() => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) {
@@ -38,30 +43,36 @@ export function GoogleOneTap({ onSuccess, onError }: GoogleOneTapProps) {
     let script: HTMLScriptElement | null = null;
 
     const initOneTap = () => {
-      window.google?.accounts.id.initialize({
-        client_id: clientId,
-        callback: (response) => {
-          onSuccess(response.credential);
-        },
-        auto_select: true,
-        cancel_on_tap_outside: false,
-        use_fedcm_for_prompt: true,
-      });
+      if (!window.google?.accounts?.id) return;
 
-      window.google?.accounts.id.prompt((notification) => {
+      const alreadyInitialized = (window as unknown as { [GSI_INITIALIZED_KEY]?: string })[GSI_INITIALIZED_KEY] === clientId;
+      if (!alreadyInitialized) {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: (response) => {
+            callbackRef.current.onSuccess(response.credential);
+          },
+          auto_select: true,
+          cancel_on_tap_outside: false,
+          use_fedcm_for_prompt: true,
+        });
+        (window as unknown as { [GSI_INITIALIZED_KEY]: string })[GSI_INITIALIZED_KEY] = clientId;
+      }
+
+      window.google.accounts.id.prompt((notification) => {
         if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          onError?.();
+          callbackRef.current.onError?.();
         }
       });
     };
 
-    // If Google script is already loaded, just initialize
-    if (window.google) {
+    if (window.google?.accounts?.id) {
       initOneTap();
-      return;
+      return () => {
+        window.google?.accounts.id.disableAutoSelect();
+      };
     }
 
-    // Load Google Identity Services script
     script = document.createElement("script");
     script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
@@ -70,10 +81,9 @@ export function GoogleOneTap({ onSuccess, onError }: GoogleOneTapProps) {
     document.head.appendChild(script);
 
     return () => {
-      // Cleanup: disable auto-select when component unmounts
       window.google?.accounts.id.disableAutoSelect();
     };
-  }, [onSuccess, onError]);
+  }, []);
 
   // The One Tap prompt is rendered by Google — no DOM element needed
   return null;

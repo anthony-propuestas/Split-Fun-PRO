@@ -89,6 +89,10 @@ app.get("/api/oauth/google/redirect_url", (c) => {
 
 // Exchange Google One Tap credential for a session
 app.post("/api/sessions", async (c) => {
+  if (!c.env.GOOGLE_CLIENT_ID) {
+    return c.json({ error: "Server misconfiguration: GOOGLE_CLIENT_ID not set" }, 500);
+  }
+
   const body = await c.req.json() as { credential?: string; code?: string };
 
   if (!body.credential) {

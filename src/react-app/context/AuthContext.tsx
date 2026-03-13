@@ -71,7 +71,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: "Unknown error" }));
-      throw new Error(err.error ?? "Sign in failed");
+      const serverMsg = err.error ?? "Sign in failed";
+      const userMessage =
+        serverMsg === "Token audience mismatch" || serverMsg.startsWith("Server misconfiguration")
+          ? "Error de configuración. Por favor, contacta al soporte."
+          : serverMsg;
+      throw new Error(userMessage);
     }
     const me = await fetchMe();
     if (me) {

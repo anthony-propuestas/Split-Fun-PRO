@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useAuth } from "@/react-app/context/AuthContext";
 import { GoogleOneTap } from "@/react-app/components/GoogleOneTap";
@@ -10,15 +10,18 @@ export default function Login() {
   const navigate = useNavigate();
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const handleGoogleCredential = async (credential: string) => {
-    try {
-      setAuthError(null);
-      await signInWithGoogle(credential);
-    } catch (err) {
-      setAuthError("Error al iniciar sesión. Intenta de nuevo.");
-      console.error("Google sign-in error:", err);
-    }
-  };
+  const handleGoogleCredential = useCallback(
+    async (credential: string) => {
+      try {
+        setAuthError(null);
+        await signInWithGoogle(credential);
+      } catch (err) {
+        setAuthError("Error al iniciar sesión. Intenta de nuevo.");
+        console.error("Google sign-in error:", err);
+      }
+    },
+    [signInWithGoogle]
+  );
 
   useEffect(() => {
     if (user && !isPending) {
