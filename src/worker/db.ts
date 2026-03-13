@@ -28,7 +28,8 @@ export interface Env {
   DB: D1Database;
   R2_BUCKET: R2Bucket;
   ASSETS: { fetch(req: Request): Promise<Response> };
-  GOOGLE_CLIENT_ID: string;
+  // Clave simétrica base64 para cifrar correos (AES-GCM)
+  EMAIL_ENCRYPTION_KEY: string;
 }
 
 /** Ejecuta una query y devuelve la primera fila, con logging de errores D1. */

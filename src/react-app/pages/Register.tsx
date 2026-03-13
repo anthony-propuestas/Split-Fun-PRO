@@ -1,26 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useAuth } from "@/react-app/context/AuthContext";
-import { GsiInitializer, GoogleSignInButton } from "@/react-app/components/GoogleOneTap";
 import { Bell, Trophy, Users, Zap, Sparkles } from "lucide-react";
 
 export default function Register() {
-  const { user, isPending, signInWithGoogle } = useAuth();
+  const { user, isPending, register } = useAuth();
   const navigate = useNavigate();
-  const [authError, setAuthError] = useState<string | null>(null);
-
-  const handleGoogleCredential = useCallback(
-    async (credential: string) => {
-      try {
-        setAuthError(null);
-        await signInWithGoogle(credential);
-      } catch (err) {
-        setAuthError("Error al crear cuenta. Intenta de nuevo.");
-        console.error("Google sign-in error:", err);
-      }
-    },
-    [signInWithGoogle]
-  );
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
     if (user && !isPending) {
@@ -65,8 +55,6 @@ export default function Register() {
 
   return (
     <div className="min-h-screen bg-onyx flex flex-col relative overflow-hidden">
-      {!user && !isPending && <GsiInitializer onSuccess={handleGoogleCredential} />}
-
       {/* Aurora background effect */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute -top-1/2 -left-1/4 w-full h-full bg-gradient-radial from-iridescent-green/15 via-transparent to-transparent animate-aurora-pulse" />
@@ -117,16 +105,90 @@ export default function Register() {
               ))}
             </div>
 
-            {authError && <p className="text-sm text-red-400 text-center">{authError}</p>}
-            <div className="w-full [&_iframe]:!min-h-[48px] flex justify-center">
-              <GoogleSignInButton id="google-signin-btn-register" />
-            </div>
+            <form
+              className="space-y-4 pt-2"
+              onSubmit={async (e: FormEvent) => {
+                e.preventDefault();
+                setError(null);
+                setInfo(null);
+                if (password !== confirmPassword) {
+                  setError("Las contraseñas no coinciden.");
+                  return;
+                }
+                try {
+                  await register(email, password);
+                  setInfo(
+                    "Cuenta creada. Revisa tu correo y verifica tu cuenta para poder iniciar sesión."
+                  );
+                } catch (err) {
+                  const message =
+                    err instanceof Error ? err.message : "No se pudo crear la cuenta.";
+                  setError(message);
+                }
+              }}
+            >
+              <div className="space-y-2 text-left">
+                <label className="block text-sm font-medium text-foreground" htmlFor="email">
+                  Correo electrónico
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-white/10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-iridescent"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  required
+                />
+              </div>
+              <div className="space-y-2 text-left">
+                <label className="block text-sm font-medium text-foreground" htmlFor="password">
+                  Contraseña
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-white/10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-iridescent"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                  required
+                />
+              </div>
+              <div className="space-y-2 text-left">
+                <label
+                  className="block text-sm font-medium text-foreground"
+                  htmlFor="confirmPassword"
+                >
+                  Repetir contraseña
+                </label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-white/10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-iridescent"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                  required
+                />
+              </div>
+
+              {error && <p className="text-sm text-red-400 text-center">{error}</p>}
+              {info && <p className="text-sm text-iridescent-green text-center">{info}</p>}
+
+              <button
+                type="submit"
+                className="w-full mt-2 inline-flex items-center justify-center px-4 py-2 rounded-lg bg-zinc-200 text-black text-sm font-medium hover:bg-zinc-300 transition"
+              >
+                Crear cuenta gratis
+              </button>
+            </form>
 
             <div className="text-center space-y-3 pt-2">
               <p className="text-sm text-muted-foreground">
                 ¿Ya tienes cuenta?{" "}
-                <Link to="/" className="text-iridescent-blue hover:underline font-medium">
-                  Volver al inicio
+                <Link to="/login" className="text-iridescent-blue hover:underline font-medium">
+                  Inicia sesión
                 </Link>
               </p>
               <p className="text-xs text-muted-foreground/60">

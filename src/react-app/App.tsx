@@ -8,7 +8,10 @@ import NativeWrapper from "@/react-app/components/NativeWrapper";
 // Lazy load pages for faster initial load
 const HomePage = lazy(() => import("@/react-app/pages/Home"));
 const Register = lazy(() => import("@/react-app/pages/Register"));
-const AuthCallback = lazy(() => import("@/react-app/pages/AuthCallback"));
+const LoginPage = lazy(() => import("@/react-app/pages/Login"));
+const ForgotPasswordPage = lazy(() => import("@/react-app/pages/ForgotPassword"));
+const ResetPasswordPage = lazy(() => import("@/react-app/pages/ResetPassword"));
+const VerifyEmailPage = lazy(() => import("@/react-app/pages/VerifyEmail"));
 const Dashboard = lazy(() => import("@/react-app/pages/Dashboard"));
 const Groups = lazy(() => import("@/react-app/pages/Groups"));
 const NewGroup = lazy(() => import("@/react-app/pages/NewGroup"));
@@ -42,7 +45,10 @@ export default function App() {
             {/* Public routes */}
             <Route path="/" element={<HomePage />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
 
             {/* Protected routes */}
             <Route

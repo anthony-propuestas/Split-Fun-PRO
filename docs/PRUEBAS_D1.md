@@ -32,7 +32,6 @@ Deberías ver: `expense_splits`, `expenses`, `group_members`, `groups`, `payment
    El plugin de Cloudflare (Vite) inyecta los bindings; si tienes `.dev.vars` con variables (p. ej. `GOOGLE_CLIENT_ID`), se cargan ahí.
 
 3. **Probar flujos críticos**:
-   - Login (Google One Tap) y comprobar que se crea/actualiza perfil en D1.
    - Crear grupo, añadir gasto, repartir, ver balance.
    - Ver dashboard, detalle de grupo, settlements, recordatorios, logros.
 

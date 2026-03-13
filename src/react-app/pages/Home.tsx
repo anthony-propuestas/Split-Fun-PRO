@@ -1,34 +1,20 @@
-import { useCallback, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useCallback } from "react";
+import { useNavigate } from "react-router";
 import { ArrowRight, Users, Receipt, PieChart, Sparkles } from "lucide-react";
 import { Button } from "@/react-app/components/ui/button";
 import { useAuth } from "@/react-app/context/AuthContext";
-import { GsiInitializer, GoogleSignInButton } from "@/react-app/components/GoogleOneTap";
 
 export default function HomePage() {
-  const { user, isPending, signInWithGoogle } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const [authError, setAuthError] = useState<string | null>(null);
-
-  const handleGoogleCredential = useCallback(
-    async (credential: string) => {
-      try {
-        setAuthError(null);
-        await signInWithGoogle(credential);
-      } catch (err) {
-        setAuthError("Error al iniciar sesión. Intenta de nuevo.");
-        console.error("Google sign-in error:", err);
-      }
-    },
-    [signInWithGoogle]
-  );
+  const handleGetStarted = useCallback(() => {
+    navigate("/register");
+  }, [navigate]);
 
   const goToDashboard = () => navigate("/dashboard");
 
   return (
     <div className="min-h-screen bg-onyx flex flex-col relative overflow-hidden">
-      {!user && !isPending && <GsiInitializer onSuccess={handleGoogleCredential} />}
-
       {/* Aurora background effect */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute -top-1/2 -left-1/4 w-full h-full bg-gradient-radial from-iridescent-green/15 via-transparent to-transparent animate-aurora-pulse" />
@@ -51,14 +37,13 @@ export default function HomePage() {
               </Button>
             ) : (
               <>
-                <Link to="/register">
-                  <Button variant="ghost" className="text-muted-foreground hover:text-foreground hover:bg-white/5">
-                    Más información
-                  </Button>
-                </Link>
-                <div className="[&_iframe]:!min-h-[44px]">
-                  <GoogleSignInButton id="google-signin-btn-header" />
-                </div>
+                <Button
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-foreground hover:bg-white/5"
+                  onClick={handleGetStarted}
+                >
+                  Más información
+                </Button>
               </>
             )}
           </div>
@@ -82,10 +67,6 @@ export default function HomePage() {
             Olvídate de las hojas de cálculo y los mensajes interminables. Gestiona gastos compartidos con amigos, familia o compañeros de forma clara y sencilla.
           </p>
 
-          {authError && (
-            <p className="text-sm text-red-400 text-center">{authError}</p>
-          )}
-
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             {user ? (
               <Button size="lg" onClick={goToDashboard} className="btn-iridescent px-8 glow-iridescent">
@@ -94,14 +75,14 @@ export default function HomePage() {
               </Button>
             ) : (
               <>
-                <div className="w-full sm:w-auto [&_iframe]:!min-h-[48px]">
-                  <GoogleSignInButton id="google-signin-btn-hero" className="flex justify-center" />
-                </div>
-                <Link to="/register">
-                  <Button size="lg" variant="outline" className="border-white/10 bg-white/5 hover:bg-white/10">
-                    Ver más ventajas
-                  </Button>
-                </Link>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="border-white/10 bg-white/5 hover:bg-white/10"
+                  onClick={handleGetStarted}
+                >
+                  Ver más ventajas
+                </Button>
               </>
             )}
           </div>

@@ -3,6 +3,14 @@ import { createMiddleware } from "hono/factory";
 import { getCookie, setCookie } from "hono/cookie";
 import type { Env } from "./db";
 import { queryOne, queryAll, run } from "./db";
+import {
+  encryptEmail,
+  decryptEmail,
+  hashEmail,
+  hashPassword,
+  verifyPassword,
+  importEmailKey,
+} from "./crypto";
 
 // ── Auth types ────────────────────────────────────────────────────────────────
 interface AuthUser {
@@ -14,24 +22,75 @@ type Variables = { user: AuthUser };
 
 const SESSION_COOKIE = "sf_session";
 
+let emailKeyPromise: Promise<CryptoKey> | null = null;
+async function getEmailKey(env: Env): Promise<CryptoKey> {
+  if (!emailKeyPromise) {
+    emailKeyPromise = importEmailKey(env.EMAIL_ENCRYPTION_KEY);
+  }
+  return emailKeyPromise;
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 const authMiddleware = createMiddleware<{ Bindings: Env; Variables: Variables }>(
   async (c, next) => {
-    const userId = getCookie(c, SESSION_COOKIE);
-    if (!userId) return c.json({ error: "Unauthorized" }, 401);
+    const sessionId = getCookie(c, SESSION_COOKIE);
+    if (!sessionId) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
 
-    const profile = await queryOne<{ user_id: string; display_name: string }>(
+    const now = nowIso();
+    const session = await queryOne<{
+      id: string;
+      user_id: string;
+      expires_at: string;
+      email_encrypted: string;
+      email_iv: string;
+    }>(
       c.env.DB,
-      "SELECT user_id, display_name FROM user_profiles WHERE user_id = ?",
-      userId
+      `
+      SELECT s.id, s.user_id, s.expires_at, u.email_encrypted, u.email_iv
+      FROM sessions s
+      JOIN users u ON u.id = s.user_id
+      WHERE s.id = ?
+      `,
+      sessionId
+    );
+
+    if (!session || session.expires_at <= now) {
+      // Sesión inválida o expirada: limpiar cookie
+      setCookie(c, SESSION_COOKIE, "", {
+        httpOnly: true,
+        path: "/",
+        sameSite: "strict",
+        secure: true,
+        maxAge: 0,
+      });
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    // Actualizar last_activity_at de forma perezosa
+    await run(
+      c.env.DB,
+      "UPDATE sessions SET last_activity_at = ? WHERE id = ?",
+      now,
+      session.id
+    );
+
+    const key = await getEmailKey(c.env);
+    const email = await decryptEmail(
+      { ivHex: session.email_iv, ciphertextHex: session.email_encrypted },
+      key
     );
 
     c.set("user", {
-      id: userId,
-      email: undefined,
-      google_user_data: profile ? { name: profile.display_name } : undefined,
+      id: session.user_id,
+      email,
     });
 
     await next();
@@ -64,81 +123,455 @@ function generateFriendCode(userId: string): string {
   return code;
 }
 
-// OAuth redirect — not implemented (removed Mocha, use One Tap instead)
+// OAuth redirect — no disponible (inicio de sesión externo eliminado)
 app.get("/api/oauth/google/redirect_url", (c) => {
-  return c.json({ error: "Use Google One Tap" }, 501);
+  return c.json(
+    {
+      error: "GOOGLE_OAUTH_DISABLED",
+      message: "El inicio de sesión con Google está deshabilitado.",
+    },
+    501
+  );
 });
 
-// Exchange Google One Tap credential for a session
-app.post("/api/sessions", async (c) => {
-  if (!c.env.GOOGLE_CLIENT_ID) {
-    return c.json({ error: "Server misconfiguration: GOOGLE_CLIENT_ID not set" }, 500);
+// ============ AUTH (email/contraseña) ============
+
+app.post("/api/auth/register", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as
+    | { email?: string; password?: string }
+    | null;
+  const email = body?.email?.trim() ?? "";
+  const password = body?.password ?? "";
+
+  if (!email || !password) {
+    return c.json({ error: "INVALID_INPUT", message: "Email y contraseña son obligatorios." }, 400);
   }
 
-  const body = await c.req.json() as { credential?: string; code?: string };
-
-  if (!body.credential) {
-    return c.json({ error: "Google credential required" }, 400);
+  // Validaciones básicas
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return c.json({ error: "INVALID_EMAIL", message: "Formato de correo no válido." }, 400);
+  }
+  if (password.length < 8) {
+    return c.json(
+      { error: "WEAK_PASSWORD", message: "La contraseña debe tener al menos 8 caracteres." },
+      400
+    );
   }
 
-  // Verify the Google JWT via Google's tokeninfo endpoint
-  const tokenRes = await fetch(
-    `https://oauth2.googleapis.com/tokeninfo?id_token=${body.credential}`
-  );
-  if (!tokenRes.ok) {
-    return c.json({ error: "Invalid Google credential" }, 401);
-  }
-
-  const tokenInfo = await tokenRes.json() as {
-    sub: string;
-    email?: string;
-    name?: string;
-    picture?: string;
-    aud: string;
-  };
-
-  // Verify this token was issued for our app
-  if (tokenInfo.aud !== c.env.GOOGLE_CLIENT_ID) {
-    return c.json({ error: "Token audience mismatch" }, 401);
-  }
-
-  const userId = tokenInfo.sub; // Google's permanent unique user ID
-
-  // Create user profile if it doesn't exist yet
-  const existingProfile = await queryOne<{ user_id: string }>(
+  const emailHash = await hashEmail(email);
+  const existing = await queryOne<{ id: string }>(
     c.env.DB,
-    "SELECT user_id FROM user_profiles WHERE user_id = ?",
-    userId
+    "SELECT id FROM users WHERE email_hash = ?",
+    emailHash
   );
 
-  if (!existingProfile) {
-    let friendCode = generateFriendCode(userId);
-    let attempts = 0;
-    while (attempts < 10) {
-      const taken = await queryOne(c.env.DB, "SELECT user_id FROM user_profiles WHERE friend_code = ?", friendCode);
-      if (!taken) {
-        await run(
-          c.env.DB,
-          "INSERT INTO user_profiles (user_id, friend_code, display_name) VALUES (?, ?, ?)",
-          userId,
-          friendCode,
-          tokenInfo.name || tokenInfo.email?.split("@")[0] || "Usuario"
-        );
-        break;
-      }
-      attempts++;
-      friendCode = generateFriendCode(userId + attempts);
-    }
+  if (existing) {
+    // Zero trust: no revelar si el correo existe ya
+    return c.json(
+      {
+        success: true,
+        message:
+          "Si el correo es válido, recibirás instrucciones para continuar en tu bandeja de entrada.",
+      },
+      200
+    );
   }
 
-  // Set session cookie (user_id acts as the session token)
-  setCookie(c, SESSION_COOKIE, userId, {
+  const key = await getEmailKey(c.env);
+  const encrypted = await encryptEmail(email, key);
+  const pwd = await hashPassword(password);
+
+  const userId = crypto.randomUUID();
+  const createdAt = nowIso();
+
+  await run(
+    c.env.DB,
+    `
+    INSERT INTO users (id, email_encrypted, email_iv, email_hash, password_hash, password_algo, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    userId,
+    encrypted.ciphertextHex,
+    encrypted.ivHex,
+    emailHash,
+    pwd.hash,
+    pwd.algo,
+    createdAt,
+    createdAt
+  );
+
+  // Crear perfil básico con friend_code si no existe
+  let friendCode = generateFriendCode(userId);
+  let attempts = 0;
+  const maxAttempts = 10;
+  while (attempts < maxAttempts) {
+    const existingCode = await queryOne(
+      c.env.DB,
+      "SELECT id FROM user_profiles WHERE friend_code = ?",
+      friendCode
+    );
+    if (!existingCode) {
+      await run(
+        c.env.DB,
+        "INSERT INTO user_profiles (user_id, friend_code, display_name) VALUES (?, ?, ?)",
+        userId,
+        friendCode,
+        email.split("@")[0] || "Usuario"
+      );
+      break;
+    }
+    attempts++;
+    friendCode = generateFriendCode(userId + attempts.toString());
+  }
+
+  // Generar token de verificación de correo (envío de email fuera de este scope)
+  const emailToken = crypto.randomUUID();
+  const emailTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24h
+
+  await run(
+    c.env.DB,
+    `
+    INSERT INTO email_verification_tokens (user_id, token, expires_at)
+    VALUES (?, ?, ?)
+    `,
+    userId,
+    emailToken,
+    emailTokenExpires
+  );
+
+  console.log("[Auth] register: created user and email verification token", {
+    userId,
+    emailHash,
+    emailToken,
+  });
+
+  return c.json(
+    {
+      success: true,
+      requiresEmailVerification: true,
+    },
+    201
+  );
+});
+
+app.post("/api/auth/login", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as
+    | { email?: string; password?: string }
+    | null;
+  const email = body?.email?.trim() ?? "";
+  const password = body?.password ?? "";
+
+  if (!email || !password) {
+    return c.json(
+      { error: "INVALID_INPUT", message: "Email y contraseña son obligatorios." },
+      400
+    );
+  }
+
+  const emailHash = await hashEmail(email);
+  const user = await queryOne<{
+    id: string;
+    password_hash: string;
+    email_verified_at: string | null;
+  }>(
+    c.env.DB,
+    "SELECT id, password_hash, email_verified_at FROM users WHERE email_hash = ?",
+    emailHash
+  );
+
+  // Respuesta genérica para evitar enumeración de usuarios
+  const invalidCreds = () =>
+    c.json(
+      {
+        error: "INVALID_CREDENTIALS",
+        message: "Correo o contraseña incorrectos.",
+      },
+      401
+    );
+
+  if (!user) {
+    // Realizamos una verificación dummy para mitigar timing attacks básicos
+    await verifyPassword(password, "argon2id-v1$00$00");
+    return invalidCreds();
+  }
+
+  const ok = await verifyPassword(password, user.password_hash);
+  if (!ok) {
+    return invalidCreds();
+  }
+
+  if (!user.email_verified_at) {
+    return c.json(
+      {
+        error: "EMAIL_NOT_VERIFIED",
+        message: "Debes verificar tu correo antes de iniciar sesión.",
+      },
+      403
+    );
+  }
+
+  const sessionId = crypto.randomUUID();
+  const now = new Date();
+  const createdAt = now.toISOString();
+  const expiresAt = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString(); // 60 días
+
+  await run(
+    c.env.DB,
+    `
+    INSERT INTO sessions (id, user_id, created_at, expires_at, last_activity_at)
+    VALUES (?, ?, ?, ?, ?)
+    `,
+    sessionId,
+    user.id,
+    createdAt,
+    expiresAt,
+    createdAt
+  );
+
+  setCookie(c, SESSION_COOKIE, sessionId, {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    sameSite: "strict",
     secure: true,
-    maxAge: 60 * 24 * 60 * 60, // 60 days
+    maxAge: 60 * 24 * 60 * 60, // 60 días
   });
+
+  return c.json({ success: true }, 200);
+});
+
+app.post("/api/auth/logout", authMiddleware, async (c) => {
+  const sessionId = getCookie(c, SESSION_COOKIE);
+  if (sessionId) {
+    await run(c.env.DB, "DELETE FROM sessions WHERE id = ?", sessionId);
+  }
+  setCookie(c, SESSION_COOKIE, "", {
+    httpOnly: true,
+    path: "/",
+    sameSite: "strict",
+    secure: true,
+    maxAge: 0,
+  });
+  return c.json({ success: true }, 200);
+});
+
+app.post("/api/auth/verify-email", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as { token?: string } | null;
+  const token = body?.token;
+  if (!token) {
+    return c.json({ error: "INVALID_TOKEN", message: "Token de verificación requerido." }, 400);
+  }
+
+  const now = nowIso();
+  const row = await queryOne<{ id: number; user_id: string; expires_at: string; used_at: string | null }>(
+    c.env.DB,
+    `
+    SELECT id, user_id, expires_at, used_at
+    FROM email_verification_tokens
+    WHERE token = ?
+    `,
+    token
+  );
+
+  if (!row || row.used_at || row.expires_at <= now) {
+    return c.json(
+      { error: "INVALID_OR_EXPIRED", message: "El enlace de verificación no es válido o ha expirado." },
+      400
+    );
+  }
+
+  const usedAt = nowIso();
+  await run(
+    c.env.DB,
+    `
+    UPDATE users SET email_verified_at = ?, updated_at = ? WHERE id = ?
+    `,
+    usedAt,
+    usedAt,
+    row.user_id
+  );
+
+  await run(
+    c.env.DB,
+    `
+    UPDATE email_verification_tokens SET used_at = ? WHERE id = ?
+    `,
+    usedAt,
+    row.id
+  );
+
+  return c.json({ success: true }, 200);
+});
+
+app.post("/api/auth/resend-verification", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as { email?: string } | null;
+  const email = body?.email?.trim() ?? "";
+  if (!email) {
+    return c.json({ error: "INVALID_INPUT", message: "Email es obligatorio." }, 400);
+  }
+
+  const emailHash = await hashEmail(email);
+  const user = await queryOne<{ id: string; email_verified_at: string | null }>(
+    c.env.DB,
+    "SELECT id, email_verified_at FROM users WHERE email_hash = ?",
+    emailHash
+  );
+
+  if (!user || user.email_verified_at) {
+    // Respuesta genérica para no revelar estado
+    return c.json(
+      {
+        success: true,
+        message: "Si el correo no estaba verificado, se ha enviado un nuevo enlace.",
+      },
+      200
+    );
+  }
+
+  const token = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  await run(
+    c.env.DB,
+    `
+    INSERT INTO email_verification_tokens (user_id, token, expires_at)
+    VALUES (?, ?, ?)
+    `,
+    user.id,
+    token,
+    expiresAt
+  );
+
+  console.log("[Auth] resend-verification: token generado", { userId: user.id, token });
+
+  return c.json(
+    {
+      success: true,
+      message: "Si el correo no estaba verificado, se ha enviado un nuevo enlace.",
+    },
+    200
+  );
+});
+
+app.post("/api/auth/forgot-password", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as { email?: string } | null;
+  const email = body?.email?.trim() ?? "";
+  if (!email) {
+    return c.json({ error: "INVALID_INPUT", message: "Email es obligatorio." }, 400);
+  }
+
+  const emailHash = await hashEmail(email);
+  const user = await queryOne<{ id: string }>(
+    c.env.DB,
+    "SELECT id FROM users WHERE email_hash = ?",
+    emailHash
+  );
+
+  if (user) {
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1h
+
+    await run(
+      c.env.DB,
+      `
+      INSERT INTO password_reset_tokens (user_id, token, expires_at)
+      VALUES (?, ?, ?)
+      `,
+      user.id,
+      token,
+      expiresAt
+    );
+
+    console.log("[Auth] forgot-password: token generado", { userId: user.id, token });
+  }
+
+  return c.json(
+    {
+      success: true,
+      message:
+        "Si el correo existe en nuestro sistema, recibirás instrucciones para restablecer tu contraseña.",
+    },
+    200
+  );
+});
+
+app.post("/api/auth/reset-password", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as
+    | { token?: string; password?: string }
+    | null;
+  const token = body?.token;
+  const password = body?.password ?? "";
+
+  if (!token || !password) {
+    return c.json(
+      { error: "INVALID_INPUT", message: "Token y nueva contraseña son obligatorios." },
+      400
+    );
+  }
+
+  if (password.length < 8) {
+    return c.json(
+      { error: "WEAK_PASSWORD", message: "La contraseña debe tener al menos 8 caracteres." },
+      400
+    );
+  }
+
+  const now = nowIso();
+  const row = await queryOne<{
+    id: number;
+    user_id: string;
+    expires_at: string;
+    used_at: string | null;
+  }>(
+    c.env.DB,
+    `
+    SELECT id, user_id, expires_at, used_at
+    FROM password_reset_tokens
+    WHERE token = ?
+    `,
+    token
+  );
+
+  if (!row || row.used_at || row.expires_at <= now) {
+    return c.json(
+      {
+        error: "INVALID_OR_EXPIRED",
+        message: "El enlace para restablecer la contraseña no es válido o ha expirado.",
+      },
+      400
+    );
+  }
+
+  const newHash = await hashPassword(password);
+  const updatedAt = nowIso();
+
+  await run(
+    c.env.DB,
+    `
+    UPDATE users SET password_hash = ?, password_algo = ?, updated_at = ? WHERE id = ?
+    `,
+    newHash.hash,
+    newHash.algo,
+    updatedAt,
+    row.user_id
+  );
+
+  await run(
+    c.env.DB,
+    `
+    UPDATE password_reset_tokens SET used_at = ? WHERE id = ?
+    `,
+    updatedAt,
+    row.id
+  );
+
+  // Revocar sesiones activas de este usuario
+  await run(
+    c.env.DB,
+    `
+    DELETE FROM sessions WHERE user_id = ?
+    `,
+    row.user_id
+  );
 
   return c.json({ success: true }, 200);
 });
@@ -184,12 +617,19 @@ app.get("/api/users/me", authMiddleware, async (c) => {
   return c.json(user);
 });
 
-// Logout
+// Logout (compatibilidad con endpoint antiguo)
 app.get("/api/logout", (c) => {
+  const sessionId = getCookie(c, SESSION_COOKIE);
+  if (sessionId) {
+    // Best effort: intentar borrar la sesión si existe
+    run(c.env.DB, "DELETE FROM sessions WHERE id = ?", sessionId).catch((e) =>
+      console.error("[Auth] /api/logout legacy delete session error", e)
+    );
+  }
   setCookie(c, SESSION_COOKIE, "", {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    sameSite: "strict",
     secure: true,
     maxAge: 0,
   });
