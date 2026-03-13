@@ -137,121 +137,136 @@ app.get("/api/oauth/google/redirect_url", (c) => {
 // ============ AUTH (email/contraseña) ============
 
 app.post("/api/auth/register", async (c) => {
-  const body = (await c.req.json().catch(() => null)) as
-    | { email?: string; password?: string }
-    | null;
-  const email = body?.email?.trim() ?? "";
-  const password = body?.password ?? "";
+  try {
+    const body = (await c.req.json().catch(() => null)) as
+      | { email?: string; password?: string }
+      | null;
+    const email = body?.email?.trim() ?? "";
+    const password = body?.password ?? "";
 
-  if (!email || !password) {
-    return c.json({ error: "INVALID_INPUT", message: "Email y contraseña son obligatorios." }, 400);
-  }
+    if (!email || !password) {
+      return c.json(
+        { error: "INVALID_INPUT", message: "Email y contraseña son obligatorios." },
+        400
+      );
+    }
 
-  // Validaciones básicas
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    return c.json({ error: "INVALID_EMAIL", message: "Formato de correo no válido." }, 400);
-  }
-  if (password.length < 8) {
-    return c.json(
-      { error: "WEAK_PASSWORD", message: "La contraseña debe tener al menos 8 caracteres." },
-      400
+    // Validaciones básicas
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return c.json({ error: "INVALID_EMAIL", message: "Formato de correo no válido." }, 400);
+    }
+    if (password.length < 8) {
+      return c.json(
+        { error: "WEAK_PASSWORD", message: "La contraseña debe tener al menos 8 caracteres." },
+        400
+      );
+    }
+
+    const emailHash = await hashEmail(email);
+    const existing = await queryOne<{ id: string }>(
+      c.env.DB,
+      "SELECT id FROM users WHERE email_hash = ?",
+      emailHash
     );
-  }
 
-  const emailHash = await hashEmail(email);
-  const existing = await queryOne<{ id: string }>(
-    c.env.DB,
-    "SELECT id FROM users WHERE email_hash = ?",
-    emailHash
-  );
+    if (existing) {
+      // Zero trust: no revelar si el correo existe ya
+      return c.json(
+        {
+          success: true,
+          message:
+            "Si el correo es válido, recibirás instrucciones para continuar en tu bandeja de entrada.",
+        },
+        200
+      );
+    }
 
-  if (existing) {
-    // Zero trust: no revelar si el correo existe ya
-    return c.json(
-      {
-        success: true,
-        message:
-          "Si el correo es válido, recibirás instrucciones para continuar en tu bandeja de entrada.",
-      },
-      200
-    );
-  }
+    const key = await getEmailKey(c.env);
+    const encrypted = await encryptEmail(email, key);
+    const pwd = await hashPassword(password);
 
-  const key = await getEmailKey(c.env);
-  const encrypted = await encryptEmail(email, key);
-  const pwd = await hashPassword(password);
+    const userId = crypto.randomUUID();
+    const createdAt = nowIso();
 
-  const userId = crypto.randomUUID();
-  const createdAt = nowIso();
-
-  await run(
-    c.env.DB,
-    `
+    await run(
+      c.env.DB,
+      `
     INSERT INTO users (id, email_encrypted, email_iv, email_hash, password_hash, password_algo, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `,
-    userId,
-    encrypted.ciphertextHex,
-    encrypted.ivHex,
-    emailHash,
-    pwd.hash,
-    pwd.algo,
-    createdAt,
-    createdAt
-  );
-
-  // Crear perfil básico con friend_code si no existe
-  let friendCode = generateFriendCode(userId);
-  let attempts = 0;
-  const maxAttempts = 10;
-  while (attempts < maxAttempts) {
-    const existingCode = await queryOne(
-      c.env.DB,
-      "SELECT id FROM user_profiles WHERE friend_code = ?",
-      friendCode
+      userId,
+      encrypted.ciphertextHex,
+      encrypted.ivHex,
+      emailHash,
+      pwd.hash,
+      pwd.algo,
+      createdAt,
+      createdAt
     );
-    if (!existingCode) {
-      await run(
+
+    // Crear perfil básico con friend_code si no existe
+    let friendCode = generateFriendCode(userId);
+    let attempts = 0;
+    const maxAttempts = 10;
+    while (attempts < maxAttempts) {
+      const existingCode = await queryOne(
         c.env.DB,
-        "INSERT INTO user_profiles (user_id, friend_code, display_name) VALUES (?, ?, ?)",
-        userId,
-        friendCode,
-        email.split("@")[0] || "Usuario"
+        "SELECT id FROM user_profiles WHERE friend_code = ?",
+        friendCode
       );
-      break;
+      if (!existingCode) {
+        await run(
+          c.env.DB,
+          "INSERT INTO user_profiles (user_id, friend_code, display_name) VALUES (?, ?, ?)",
+          userId,
+          friendCode,
+          email.split("@")[0] || "Usuario"
+        );
+        break;
+      }
+      attempts++;
+      friendCode = generateFriendCode(userId + attempts.toString());
     }
-    attempts++;
-    friendCode = generateFriendCode(userId + attempts.toString());
-  }
 
-  // Generar token de verificación de correo (envío de email fuera de este scope)
-  const emailToken = crypto.randomUUID();
-  const emailTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24h
+    // Generar token de verificación de correo (envío de email fuera de este scope)
+    const emailToken = crypto.randomUUID();
+    const emailTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24h
 
-  await run(
-    c.env.DB,
-    `
+    await run(
+      c.env.DB,
+      `
     INSERT INTO email_verification_tokens (user_id, token, expires_at)
     VALUES (?, ?, ?)
     `,
-    userId,
-    emailToken,
-    emailTokenExpires
-  );
+      userId,
+      emailToken,
+      emailTokenExpires
+    );
 
-  console.log("[Auth] register: created user and email verification token", {
-    userId,
-    emailHash,
-    emailToken,
-  });
+    console.log("[Auth] register: created user and email verification token", {
+      userId,
+      emailHash,
+      emailToken,
+    });
 
-  return c.json(
-    {
-      success: true,
-      requiresEmailVerification: true,
-    },
-    201
-  );
+    return c.json(
+      {
+        success: true,
+        requiresEmailVerification: true,
+      },
+      201
+    );
+  } catch (error) {
+    console.error("[Auth] register: unexpected error", error);
+    return c.json(
+      {
+        error: "INTERNAL_ERROR",
+        message:
+          "No se pudo crear la cuenta por un error interno. Inténtalo de nuevo más tarde o contacta con soporte.",
+      },
+      500
+    );
+  }
 });
 
 app.post("/api/auth/login", async (c) => {
