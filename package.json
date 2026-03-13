@@ -48,6 +48,10 @@
     "check": "npm run build && wrangler pages deploy dist",
     "deploy": "npm run build && wrangler pages deploy dist",
     "dev": "vite",
+    "d1:migrate": "node scripts/apply-d1-migrations.js",
+    "d1:migrate:local": "node scripts/apply-d1-migrations.js --local",
+    "d1:verify": "node scripts/verify-d1-schema.js",
+    "d1:verify:local": "node scripts/verify-d1-schema.js --local",
     "knip": "knip",
     "lint": "eslint ."
   }

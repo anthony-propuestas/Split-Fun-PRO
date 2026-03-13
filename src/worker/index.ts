@@ -1,28 +1,8 @@
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { getCookie, setCookie } from "hono/cookie";
-
-// ── Cloudflare bindings ──────────────────────────────────────────────────────
-interface D1PreparedStatement {
-  bind(...values: unknown[]): D1PreparedStatement;
-  first<T = unknown>(colName?: string): Promise<T | null>;
-  all<T = unknown>(): Promise<{ results: T[]; success: boolean; meta: { last_row_id?: number } }>;
-  run(): Promise<{ success: boolean; meta: { last_row_id?: number } }>;
-}
-interface D1Database {
-  prepare(query: string): D1PreparedStatement;
-}
-interface R2Bucket {
-  put(key: string, value: unknown): Promise<void>;
-  get(key: string): Promise<unknown>;
-  delete(key: string): Promise<void>;
-}
-interface Env {
-  DB: D1Database;
-  R2_BUCKET: R2Bucket;
-  ASSETS: { fetch(req: Request): Promise<Response> };
-  GOOGLE_CLIENT_ID: string; // Set via Cloudflare dashboard or .dev.vars
-}
+import type { Env } from "./db";
+import { queryOne, queryAll, run } from "./db";
 
 // ── Auth types ────────────────────────────────────────────────────────────────
 interface AuthUser {
@@ -42,9 +22,11 @@ const authMiddleware = createMiddleware<{ Bindings: Env; Variables: Variables }>
     const userId = getCookie(c, SESSION_COOKIE);
     if (!userId) return c.json({ error: "Unauthorized" }, 401);
 
-    const profile = await c.env.DB.prepare(
-      "SELECT user_id, display_name FROM user_profiles WHERE user_id = ?"
-    ).bind(userId).first<{ user_id: string; display_name: string }>();
+    const profile = await queryOne<{ user_id: string; display_name: string }>(
+      c.env.DB,
+      "SELECT user_id, display_name FROM user_profiles WHERE user_id = ?",
+      userId
+    );
 
     c.set("user", {
       id: userId,
@@ -123,25 +105,25 @@ app.post("/api/sessions", async (c) => {
   const userId = tokenInfo.sub; // Google's permanent unique user ID
 
   // Create user profile if it doesn't exist yet
-  const existingProfile = await c.env.DB.prepare(
-    "SELECT user_id FROM user_profiles WHERE user_id = ?"
-  ).bind(userId).first<{ user_id: string }>();
+  const existingProfile = await queryOne<{ user_id: string }>(
+    c.env.DB,
+    "SELECT user_id FROM user_profiles WHERE user_id = ?",
+    userId
+  );
 
   if (!existingProfile) {
     let friendCode = generateFriendCode(userId);
     let attempts = 0;
     while (attempts < 10) {
-      const taken = await c.env.DB.prepare(
-        "SELECT user_id FROM user_profiles WHERE friend_code = ?"
-      ).bind(friendCode).first();
+      const taken = await queryOne(c.env.DB, "SELECT user_id FROM user_profiles WHERE friend_code = ?", friendCode);
       if (!taken) {
-        await c.env.DB.prepare(
-          "INSERT INTO user_profiles (user_id, friend_code, display_name) VALUES (?, ?, ?)"
-        ).bind(
+        await run(
+          c.env.DB,
+          "INSERT INTO user_profiles (user_id, friend_code, display_name) VALUES (?, ?, ?)",
           userId,
           friendCode,
           tokenInfo.name || tokenInfo.email?.split("@")[0] || "Usuario"
-        ).run();
+        );
         break;
       }
       attempts++;
@@ -166,9 +148,11 @@ app.get("/api/users/me", authMiddleware, async (c) => {
   const user = c.get("user")!;
   
   // Check if user already has a profile
-  const existingProfile = await c.env.DB.prepare(`
-    SELECT id, friend_code FROM user_profiles WHERE user_id = ?
-  `).bind(user.id).first<{ id: number; friend_code: string }>();
+  const existingProfile = await queryOne<{ id: number; friend_code: string }>(
+    c.env.DB,
+    "SELECT id, friend_code FROM user_profiles WHERE user_id = ?",
+    user.id
+  );
   
   if (!existingProfile) {
     // Generate friend code and handle potential collisions
@@ -177,17 +161,16 @@ app.get("/api/users/me", authMiddleware, async (c) => {
     const maxAttempts = 10;
     
     while (attempts < maxAttempts) {
-      // Check if this code is already taken by another user
-      const existingCode = await c.env.DB.prepare(`
-        SELECT id FROM user_profiles WHERE friend_code = ?
-      `).bind(friendCode).first();
+      const existingCode = await queryOne(c.env.DB, "SELECT id FROM user_profiles WHERE friend_code = ?", friendCode);
       
       if (!existingCode) {
-        // Code is available, create the profile
-        await c.env.DB.prepare(`
-          INSERT INTO user_profiles (user_id, friend_code, display_name)
-          VALUES (?, ?, ?)
-        `).bind(user.id, friendCode, user.google_user_data?.name || user.email?.split("@")[0] || "Usuario").run();
+        await run(
+          c.env.DB,
+          "INSERT INTO user_profiles (user_id, friend_code, display_name) VALUES (?, ?, ?)",
+          user.id,
+          friendCode,
+          user.google_user_data?.name || user.email?.split("@")[0] || "Usuario"
+        );
         break;
       }
       
@@ -219,12 +202,11 @@ app.get("/api/dashboard", authMiddleware, async (c) => {
   const user = c.get("user")!;
 
   // Get user's member IDs across all groups
-  const { results: memberships } = await c.env.DB.prepare(`
-    SELECT gm.id as member_id, gm.group_id, g.name as group_name, g.emoji
-    FROM group_members gm
-    JOIN groups g ON g.id = gm.group_id
-    WHERE gm.user_id = ?
-  `).bind(user.id).all<{ member_id: number; group_id: number; group_name: string; emoji: string }>();
+  const { results: memberships } = await queryAll<{ member_id: number; group_id: number; group_name: string; emoji: string }>(
+    c.env.DB,
+    "SELECT gm.id as member_id, gm.group_id, g.name as group_name, g.emoji FROM group_members gm JOIN groups g ON g.id = gm.group_id WHERE gm.user_id = ?",
+    user.id
+  );
 
   if (memberships.length === 0) {
     return c.json({ groups: [], totalOwed: 0, totalOwe: 0 });

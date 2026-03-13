@@ -11,15 +11,14 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "019c8165-c866-7049-81dc-366b06644ca0",
-      "database_id": "019c8165-c866-7049-81dc-366b06644ca0"
+      "database_name": "Split-fun-pro",
+      "database_id": "cc5bbf29-37f0-4a6e-ad78-1354254d37c4"
     }
   ],
-	  "r2_buckets": [
-	    {
-	      "binding": "R2_BUCKET",
-	      "bucket_name": "019c8165-c866-7049-81dc-366b06644ca0"
-	    }
-	  ],
-	}
-
+  "r2_buckets": [
+    {
+      "binding": "R2_BUCKET",
+      "bucket_name": "019c8165-c866-7049-81dc-366b06644ca0"
+    }
+  ]
+}
