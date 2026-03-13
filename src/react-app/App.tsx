@@ -7,7 +7,6 @@ import NativeWrapper from "@/react-app/components/NativeWrapper";
 
 // Lazy load pages for faster initial load
 const HomePage = lazy(() => import("@/react-app/pages/Home"));
-const Login = lazy(() => import("@/react-app/pages/Login"));
 const Register = lazy(() => import("@/react-app/pages/Register"));
 const AuthCallback = lazy(() => import("@/react-app/pages/AuthCallback"));
 const Dashboard = lazy(() => import("@/react-app/pages/Dashboard"));
@@ -42,7 +41,6 @@ export default function App() {
             <Routes>
             {/* Public routes */}
             <Route path="/" element={<HomePage />} />
-            <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
 

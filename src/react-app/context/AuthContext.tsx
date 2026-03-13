@@ -48,11 +48,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await fetch("/api/logout");
     setUser(null);
-    window.location.href = "/login";
+    window.location.href = "/";
   };
 
   const redirectToLogin = () => {
-    window.location.href = "/login";
+    window.location.href = "/";
   };
 
   // Used by /auth/callback for traditional OAuth code flow (if re-implemented later)

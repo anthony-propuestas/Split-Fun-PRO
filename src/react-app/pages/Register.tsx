@@ -1,12 +1,32 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useAuth } from "@/react-app/context/AuthContext";
+import { GoogleOneTap } from "@/react-app/components/GoogleOneTap";
 import { Button } from "@/react-app/components/ui/button";
 import { Bell, Trophy, Users, Zap, Sparkles } from "lucide-react";
 
 export default function Register() {
-  const { user, isPending, redirectToLogin } = useAuth();
+  const { user, isPending, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const handleGoogleCredential = useCallback(
+    async (credential: string) => {
+      try {
+        setAuthError(null);
+        await signInWithGoogle(credential);
+      } catch (err) {
+        setAuthError("Error al crear cuenta. Intenta de nuevo.");
+        console.error("Google sign-in error:", err);
+      }
+    },
+    [signInWithGoogle]
+  );
+
+  const openGoogleOneTap = () => {
+    setAuthError(null);
+    window.google?.accounts?.id?.prompt();
+  };
 
   useEffect(() => {
     if (user && !isPending) {
@@ -51,6 +71,8 @@ export default function Register() {
 
   return (
     <div className="min-h-screen bg-onyx flex flex-col relative overflow-hidden">
+      {!user && !isPending && <GoogleOneTap onSuccess={handleGoogleCredential} />}
+
       {/* Aurora background effect */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute -top-1/2 -left-1/4 w-full h-full bg-gradient-radial from-iridescent-green/15 via-transparent to-transparent animate-aurora-pulse" />
@@ -101,8 +123,9 @@ export default function Register() {
               ))}
             </div>
 
+            {authError && <p className="text-sm text-red-400 text-center">{authError}</p>}
             <Button
-              onClick={redirectToLogin}
+              onClick={openGoogleOneTap}
               className="w-full h-12 btn-iridescent glow-iridescent"
             >
               <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
@@ -129,8 +152,8 @@ export default function Register() {
             <div className="text-center space-y-3 pt-2">
               <p className="text-sm text-muted-foreground">
                 ¿Ya tienes cuenta?{" "}
-                <Link to="/login" className="text-iridescent-blue hover:underline font-medium">
-                  Inicia sesión
+                <Link to="/" className="text-iridescent-blue hover:underline font-medium">
+                  Volver al inicio
                 </Link>
               </p>
               <p className="text-xs text-muted-foreground/60">

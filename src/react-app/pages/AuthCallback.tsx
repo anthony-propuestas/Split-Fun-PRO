@@ -15,7 +15,7 @@ export default function AuthCallback() {
       } catch (err) {
         console.error("Auth callback error:", err);
         setError("Error al iniciar sesión. Por favor, intenta de nuevo.");
-        setTimeout(() => navigate("/login"), 3000);
+        setTimeout(() => navigate("/"), 3000);
       }
     };
 
