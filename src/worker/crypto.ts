@@ -88,7 +88,7 @@ export async function decryptEmail(
 // En una iteración futura se puede sustituir por argon2id/bcrypt cuando haya soporte/librería adecuada.
 
 const PASSWORD_ALGO: PasswordAlgo = "argon2id-v1";
-const PBKDF2_ITERATIONS = 210_000; // coste aproximado, ajustable según entorno
+const PBKDF2_ITERATIONS = 100_000; // Cloudflare Workers limita PBKDF2 a 100k iteraciones máximo
 const PBKDF2_SALT_BYTES = 16;
 
 export interface PasswordHashResult {
