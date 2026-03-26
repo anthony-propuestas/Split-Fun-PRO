@@ -30,6 +30,12 @@ export interface Env {
   ASSETS: { fetch(req: Request): Promise<Response> };
   // Clave simétrica base64 para cifrar correos (AES-GCM)
   EMAIL_ENCRYPTION_KEY: string;
+  // Resend API — configurar con: npx wrangler secret put RESEND_API_KEY
+  RESEND_API_KEY: string;
+  // Opcional: dirección remitente verificada en Resend (ej: "Split Fun PRO <no-reply@tudominio.com>")
+  FROM_EMAIL?: string;
+  // Opcional: URL base de la app (default: https://split-fun-pro.pages.dev)
+  APP_BASE_URL?: string;
 }
 
 /** Ejecuta una query y devuelve la primera fila, con logging de errores D1. */

@@ -13,6 +13,7 @@ import {
   type EncryptedEmail,
   type PasswordHashResult,
 } from "./crypto";
+import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
 
 // ── Auth types ────────────────────────────────────────────────────────────────
 interface AuthUser {
@@ -319,6 +320,13 @@ app.post("/api/auth/register", async (c) => {
       emailToken,
     });
 
+    // Enviar email de verificación (fallo no cancela el registro)
+    try {
+      await sendVerificationEmail(c.env, email, emailToken);
+    } catch (e) {
+      console.error("[Auth] register: EMAIL_SEND_FAILED", e);
+    }
+
     return c.json(
       {
         success: true,
@@ -528,6 +536,12 @@ app.post("/api/auth/resend-verification", async (c) => {
 
   console.log("[Auth] resend-verification: token generado", { userId: user.id, token });
 
+  try {
+    await sendVerificationEmail(c.env, email, token);
+  } catch (e) {
+    console.error("[Auth] resend-verification: EMAIL_SEND_FAILED", e);
+  }
+
   return c.json(
     {
       success: true,
@@ -567,6 +581,12 @@ app.post("/api/auth/forgot-password", async (c) => {
     );
 
     console.log("[Auth] forgot-password: token generado", { userId: user.id, token });
+
+    try {
+      await sendPasswordResetEmail(c.env, email, token);
+    } catch (e) {
+      console.error("[Auth] forgot-password: EMAIL_SEND_FAILED", e);
+    }
   }
 
   return c.json(
