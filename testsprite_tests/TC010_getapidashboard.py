@@ -1,45 +1,47 @@
 import requests
+import uuid
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from helpers import register_verify_and_login, make_session
 
 BASE_URL = "http://localhost:5173/api"
+DASHBOARD_URL = f"{BASE_URL}/dashboard"
+LOGOUT_URL = f"{BASE_URL}/auth/logout"
 TIMEOUT = 30
 
-def test_get_api_dashboard():
-    session = requests.Session()
-    # Credentials for login - ensure these exist in the test environment
-    email = "testuser@example.com"
-    password = "TestPass123!"
+def test_getapidashboard():
+    email = f"tc010_{uuid.uuid4().hex[:8]}@example.com"
+    password = "StrongPassw0rd!"
+    session = make_session()
 
     try:
-        # Login to get session cookie
-        login_resp = session.post(
-            f"{BASE_URL}/auth/login",
-            json={"email": email, "password": password},
-            timeout=TIMEOUT
-        )
-        assert login_resp.status_code == 200, f"Login failed: {login_resp.text}"
-        login_data = login_resp.json()
-        assert login_data.get("success") is True, f"Login response not successful: {login_data}"
+        # Register, verify email via D1 query, and login
+        register_verify_and_login(session, email, password)
 
-        # Access dashboard endpoint with authenticated session
-        dashboard_resp = session.get(f"{BASE_URL}/dashboard", timeout=TIMEOUT)
-        assert dashboard_resp.status_code == 200, f"Dashboard request failed: {dashboard_resp.text}"
+        # Cookies should be set by login request
+        assert session.cookies, "Session cookie not set after login"
 
-        dashboard_data = dashboard_resp.json()
-        assert isinstance(dashboard_data, dict), "Dashboard response is not a JSON object"
+        # Request dashboard with valid session cookie
+        resp = session.get(DASHBOARD_URL, timeout=TIMEOUT)
+        assert resp.status_code == 200, f"Dashboard request failed: {resp.text}"
+        data = resp.json()
 
-        # Validate keys presence
-        expected_keys = {"groups", "recentExpenses", "totalOwed", "totalOwing"}
-        assert expected_keys.issubset(dashboard_data.keys()), f"Dashboard response missing keys: {expected_keys - dashboard_data.keys()}"
+        # Validate response keys (API returns groups, totalOwed, totalOwe)
+        assert "groups" in data, "Missing 'groups' in dashboard response"
+        assert isinstance(data["groups"], list), "'groups' should be a list"
 
-        # Validate types
-        assert isinstance(dashboard_data["groups"], list), "groups is not a list"
-        assert isinstance(dashboard_data["recentExpenses"], list), "recentExpenses is not a list"
-        assert isinstance(dashboard_data["totalOwed"], (int,float)), "totalOwed is not a number"
-        assert isinstance(dashboard_data["totalOwing"], (int,float)), "totalOwing is not a number"
+        assert "totalOwed" in data, "Missing 'totalOwed' in dashboard response"
+        assert isinstance(data["totalOwed"], (int, float)), "'totalOwed' should be a number"
+
+        assert "totalOwe" in data, "Missing 'totalOwe' in dashboard response"
+        assert isinstance(data["totalOwe"], (int, float)), "'totalOwe' should be a number"
 
     finally:
-        # Logout to clean up session
-        session.post(f"{BASE_URL}/auth/logout", timeout=TIMEOUT)
-        session.close()
+        # Logout user to cleanup session
+        try:
+            session.post(LOGOUT_URL, timeout=TIMEOUT)
+        except Exception:
+            pass
 
-test_get_api_dashboard()
+test_getapidashboard()

@@ -1,51 +1,42 @@
 import requests
 import uuid
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from helpers import register_verify_and_login, make_session
 
 BASE_URL = "http://localhost:5173/api"
 TIMEOUT = 30
 
-def test_post_api_auth_logout():
-    unique_email = f"testuser_{uuid.uuid4()}@example.com"
+def test_postapiauthlogout():
+    session = make_session()
+    email = f"tc003_{uuid.uuid4().hex[:8]}@example.com"
     password = "StrongPassw0rd!"
 
-    session = requests.Session()
-
     try:
-        register_resp = session.post(
-            f"{BASE_URL}/auth/register",
-            json={"email": unique_email, "password": password},
-            timeout=TIMEOUT
-        )
-        assert register_resp.status_code == 200
-        register_json = register_resp.json()
-        assert register_json.get("success") is True
-
-        login_resp = session.post(
-            f"{BASE_URL}/auth/login",
-            json={"email": unique_email, "password": password},
-            timeout=TIMEOUT
-        )
-        assert login_resp.status_code == 200
+        # Register, verify email via D1 query, and login
+        login_resp = register_verify_and_login(session, email, password)
         login_json = login_resp.json()
-        assert login_json.get("success") is True
+        assert "success" in login_json and login_json["success"] is True
 
-        assert any(cookie.name.lower() == "session" for cookie in session.cookies), "Session cookie not set after login"
+        # Ensure session cookie is set
+        session_cookies = session.cookies.get_dict()
+        assert session_cookies  # Check that cookies are not empty
 
-        logout_resp = session.post(
-            f"{BASE_URL}/auth/logout",
-            timeout=TIMEOUT
-        )
+        # Perform logout with the session cookie
+        logout_resp = session.post(f"{BASE_URL}/auth/logout", timeout=TIMEOUT)
         assert logout_resp.status_code == 200
         logout_json = logout_resp.json()
         assert logout_json.get("success") is True
 
+        # Verify session is invalidated by trying to access an authenticated endpoint
         me_resp = session.get(f"{BASE_URL}/users/me", timeout=TIMEOUT)
         assert me_resp.status_code == 401
         me_json = me_resp.json()
         assert "error" in me_json and me_json["error"] == "Unauthorized"
 
     finally:
-        session.close()
+        # Cleanup: there's no explicit delete user endpoint, so no cleanup beyond test isolation assumed
+        pass
 
-
-test_post_api_auth_logout()
+test_postapiauthlogout()

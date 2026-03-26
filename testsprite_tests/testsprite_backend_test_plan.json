@@ -1,52 +1,52 @@
 [
   {
     "id": "TC001",
-    "title": "postapiauthregisteremailpassword",
-    "description": "Test user registration with valid email and password, verify success response and that verification email is sent."
+    "title": "post api auth register success and failure cases",
+    "description": "Test user registration with valid email and password, verify success response and email verification token sent. Test registration failure when EMAIL_ENCRYPTION_KEY is missing or invalid, expect 500 error."
   },
   {
     "id": "TC002",
-    "title": "postapiauthloginemailpassword",
-    "description": "Test user login with correct credentials, verify success response and HTTP-only session cookie is set."
+    "title": "post api auth login with valid and invalid credentials",
+    "description": "Test login with correct email and password, expect success and HTTP-only session cookie set. Test login with invalid credentials, expect 401 error."
   },
   {
     "id": "TC003",
-    "title": "postapiauthlogout",
-    "description": "Test user logout with valid session cookie, verify session invalidation and success response."
+    "title": "post api auth logout invalidates session",
+    "description": "Test logout with valid session cookie, expect success and session removal from database."
   },
   {
     "id": "TC004",
-    "title": "postapiauthverifyemailtoken",
-    "description": "Test email verification with valid token, verify success response."
+    "title": "post api auth verify email with valid and invalid token",
+    "description": "Test email verification with valid token, expect success. Test with invalid or expired token, expect 400 error."
   },
   {
     "id": "TC005",
-    "title": "postapiauthforgotpasswordemail",
-    "description": "Test password reset request with valid email, verify success response without revealing email existence."
+    "title": "post api auth forgot password does not reveal email existence",
+    "description": "Test forgot password request with existing and non-existing email, expect success response without revealing email existence."
   },
   {
     "id": "TC006",
-    "title": "postapiauthresetpasswordtokenpassword",
-    "description": "Test password reset with valid token and new password, verify success response and session invalidation."
+    "title": "post api auth reset password with valid and invalid token",
+    "description": "Test password reset with valid token and new password, expect success and invalidation of all active sessions. Test with invalid or expired token, expect 400 error."
   },
   {
     "id": "TC007",
-    "title": "getapiusersme",
-    "description": "Test retrieval of authenticated user's basic info with valid session cookie, verify correct user data is returned."
+    "title": "get api users me with and without session cookie",
+    "description": "Test retrieving authenticated user's basic info with valid session cookie, expect 200 response. Test without session cookie, expect 401 Unauthorized error."
   },
   {
     "id": "TC008",
-    "title": "getapiprofile",
-    "description": "Test retrieval of authenticated user's profile with valid session cookie, verify display name and friend code are returned."
+    "title": "get api users search with valid and invalid query",
+    "description": "Test user search with query string of 3 or more characters, expect 200 with results. Test with query less than 3 characters, expect 400 error."
   },
   {
     "id": "TC009",
-    "title": "patchapiprofiledisplayname",
-    "description": "Test updating authenticated user's display name with valid session cookie and valid new name, verify success response."
+    "title": "patch api profile update display name",
+    "description": "Test updating authenticated user's display name with valid session and valid input, expect success. Test with invalid input, expect 400 error."
   },
   {
     "id": "TC010",
-    "title": "getapidashboard",
-    "description": "Test retrieval of dashboard summary with valid session cookie, verify groups, recent expenses, total owed and total owing are returned."
+    "title": "post api groups create with valid and invalid data",
+    "description": "Test creating a new group with valid name, emoji, and description, expect success and group returned. Test with invalid body data, expect 400 error."
   }
 ]

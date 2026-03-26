@@ -1234,66 +1234,30 @@ body {
         
         <div class="coverage-summary">
           <ul class="coverage-list text-body">
-            <li><span class="coverage-highlight">0/10</span> of tests passed</li>
+            <li><span class="coverage-highlight">2/10</span> of tests passed</li>
             <li><span class="coverage-highlight">Key gaps / risks:</span>
             
               <blockquote>
-<p><strong>0% de tests pasaron.</strong> Todos los fallos comparten la misma causa raíz.</p>
+<p><strong>20% of tests passed (2/10).</strong> Improved from Run 1 (10%). TC006 is a new pass.</p>
 </blockquote>
-<h3>Causa raíz principal: Worker no sirve rutas <code>/api/*</code> en local</h3>
-<p>Todos los tests recibieron <strong>HTTP 404</strong> al llamar a cualquier endpoint bajo <code>/api/</code>. Esto indica que el <strong>Cloudflare Worker no está activo</strong> como parte del servidor de desarrollo.</p>
-<p><strong>Diagnóstico probable:</strong></p>
-<ol>
-<li>
-<p><strong>Falta <code>.dev.vars</code></strong> — El Worker necesita las variables secretas (<code>EMAIL_ENCRYPTION_KEY</code>, <code>RESEND_API_KEY</code>) para iniciar. Sin ellas, el plugin <code>@cloudflare/vite-plugin</code> puede fallar silenciosamente al arrancar el Worker, dejando solo el frontend activo.</p>
-</li>
-<li>
-<p><strong>El Worker no se inicializa correctamente en Windows</strong> — Existen problemas conocidos con <code>@cloudflare/vite-plugin</code> en entornos Windows donde el miniflare (el simulador local del Worker) no arranca, y Vite sirve el frontend pero no las rutas del Worker.</p>
-</li>
-</ol>
-<p><strong>Acción correctiva recomendada:</strong></p>
-<pre><code class="language-bash"># 1. Crear archivo .dev.vars en la raíz del proyecto con:
-EMAIL_ENCRYPTION_KEY=&lt;tu-clave-aes-256-en-base64&gt;
-RESEND_API_KEY=&lt;tu-api-key-de-resend&gt;
-
-# 2. Verificar que el Worker responde localmente:
-curl http://localhost:5173/api/auth/register -X POST -H &quot;Content-Type: application/json&quot; -d '{&quot;email&quot;:&quot;test@test.com&quot;,&quot;password&quot;:&quot;password123&quot;}'
-
-# 3. Si el problema persiste en Windows, probar con WSL2 o ejecutar con wrangler directamente:
-npx wrangler dev --local
-</code></pre>
-<h3>Riesgos adicionales identificados (no bloqueantes en este ciclo)</h3>
-<table>
-<thead>
-<tr>
-<th>Riesgo</th>
-<th>Área</th>
-<th>Impacto</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Google OAuth retorna 501</td>
-<td>Autenticación</td>
-<td>Sin OAuth, solo email/password disponible</td>
-</tr>
-<tr>
-<td><code>EMAIL_ENCRYPTION_KEY</code> ausente = 500 en producción</td>
-<td>Auth</td>
-<td>Todos los flujos de auth fallan si el secreto no está configurado en Cloudflare</td>
-</tr>
-<tr>
-<td>El creador del grupo no tiene permisos especiales</td>
-<td>Grupos</td>
-<td>Cualquier miembro puede eliminar un grupo</td>
-</tr>
-<tr>
-<td>No hay validación de monto mínimo en gastos</td>
-<td>Gastos</td>
-<td>Gastos de $0 o negativos podrían registrarse</td>
-</tr>
-</tbody>
-</table>
+<p><strong>Progress since Run 1:</strong></p>
+<ul>
+<li>✅ TC001 registration success case now accepts <code>201</code> correctly</li>
+<li>✅ TC003 now progresses past registration and reaches the login step</li>
+<li>✅ TC006 (reset password) is now passing</li>
+<li>✅ Password Recovery requirement is fully covered (2/2 passing)</li>
+</ul>
+<p><strong>Remaining root cause — Email Verification Prerequisite (blocks 6/8 failing tests):</strong>
+Login requires email verification. The tests register a user but cannot complete the verification flow because:</p>
+<ul>
+<li>The verification token is sent by email (not returned in the API response)</li>
+<li>There is no test helper or admin endpoint to retrieve or bypass the token</li>
+</ul>
+<p><strong>Recommended fix:</strong> Add a test setup helper that directly queries <code>email_verification_tokens</code> in the local D1 database after registration to get the real token, then calls <code>POST /api/auth/verify-email</code> before attempting login. This would unblock TC002, TC003, TC007, TC008, TC009, TC010.</p>
+<p><strong>Secondary issue — TC001 negative case:</strong>
+The test expects <code>500</code> when <code>EMAIL_ENCRYPTION_KEY</code> is invalid. This env variable is a Cloudflare secret and cannot be overridden via request body. This failure case cannot be tested in integration without environment control.</p>
+<p><strong>TC004 / TC009 generated with wrong status code:</strong>
+Despite updating <code>code_summary.yaml</code>, the testsprite test generator still produced <code>assert status_code == 200</code> for registration in these tests. The test plan descriptions may need to explicitly mention <code>201</code> to guide code generation.</p>
 
             </li>
 </ul>
@@ -1318,18 +1282,34 @@ npx wrangler dev --local
           <div class="table-rows">
             
             <div class="table-row">
-              <div class="table-cell"><span class="text-body">Requirement: Authentication — Register</span></div>
-              <div class="table-cell"><span class="text-body">3</span></div>
+              <div class="table-cell"><span class="text-body">Requirement: User Registration</span></div>
+              <div class="table-cell"><span class="text-body">1</span></div>
               <div class="table-cell"><span class="text-body">0</span></div>
-              <div class="table-cell"><span class="text-body">3</span></div>
+              <div class="table-cell"><span class="text-body">1</span></div>
             </div>
         
 
             <div class="table-row">
-              <div class="table-cell"><span class="text-body">Requirement: Authentication — Login & Session</span></div>
-              <div class="table-cell"><span class="text-body">3</span></div>
+              <div class="table-cell"><span class="text-body">Requirement: User Login & Session Management</span></div>
+              <div class="table-cell"><span class="text-body">2</span></div>
               <div class="table-cell"><span class="text-body">0</span></div>
-              <div class="table-cell"><span class="text-body">3</span></div>
+              <div class="table-cell"><span class="text-body">2</span></div>
+            </div>
+        
+
+            <div class="table-row">
+              <div class="table-cell"><span class="text-body">Requirement: Email Verification</span></div>
+              <div class="table-cell"><span class="text-body">1</span></div>
+              <div class="table-cell"><span class="text-body">0</span></div>
+              <div class="table-cell"><span class="text-body">1</span></div>
+            </div>
+        
+
+            <div class="table-row">
+              <div class="table-cell"><span class="text-body">Requirement: Password Recovery</span></div>
+              <div class="table-cell"><span class="text-body">2</span></div>
+              <div class="table-cell"><span class="text-body">2</span></div>
+              <div class="table-cell"><span class="text-body">0</span></div>
             </div>
         
 
@@ -1342,7 +1322,7 @@ npx wrangler dev --local
         
 
             <div class="table-row">
-              <div class="table-cell"><span class="text-body">Requirement: Dashboard</span></div>
+              <div class="table-cell"><span class="text-body">Requirement: Groups</span></div>
               <div class="table-cell"><span class="text-body">1</span></div>
               <div class="table-cell"><span class="text-body">0</span></div>
               <div class="table-cell"><span class="text-body">1</span></div>
@@ -1368,13 +1348,13 @@ npx wrangler dev --local
           <div class="accordion-header" onclick="toggleAccordion(this)">
             <div class="requirement-content">
                                           <div class="requirement-title-row">
-              <h3 class="title-requirement">Requirement: Authentication — Register</h3>
+              <h3 class="title-requirement">Requirement: User Registration</h3>
                 <div class="requirement-status-tag status-error">
               <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="7.99961" cy="7.99998" r="6.4" fill="#C23539" fill-opacity="0.2"/>
                 <path d="M8 5.59998V7.99698" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10.394V10.3995" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              <span>0/3</span>
+              <span>0/1</span>
             </div>
               </div>
               <p class="text-body-medium requirement-description">Proper error handling for API calls and invalid data scenarios.</p>
@@ -1390,23 +1370,23 @@ npx wrangler dev --local
             <div class="test-wrapper">
 <div class="test-card">
                 <div class="test-header">
-                  <h4 class="text-body-medium">TC001 — POST /api/auth/register (email/password)</h4>
+                  <h4 class="text-body-medium">TC001 — POST /api/auth/register success and failure cases</h4>
                 </div>
                 <div class="test-content">
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Code</div>
                     <div class="test-field-value text-body">
-                      <a href="./TC001_postapiauthregisteremailpassword.py" class="text-link">TC001_postapiauthregisteremailpassword.py</a>
+                      <a href="./TC001_post_api_auth_register_success_and_failure_cases.py" class="text-link">TC001_post_api_auth_register_success_and_failure_cases.py</a>
                     </div>
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Error</div>
-                    <div class="test-field-value text-body">`AssertionError: Expected status code 200, got 404`</div>
+                    <div class="test-field-value text-body">```</div>
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Visualization and Result</div>
                     <div class="test-field-value text-body">
-                      <a href="https://www.testsprite.com/dashboard/mcp/tests/f63a69cf-c624-4bc7-a326-e9efd1a15421/d14ad002-e4fd-42e7-9f05-f566a5e7d380" class="text-link">View Results</a>
+                      <a href="https://www.testsprite.com/dashboard/mcp/tests/3a1ca92f-fa74-4feb-af26-f01823ea0966/414f2cdb-ccc9-4249-a443-fc9d62657382" class="text-link">View Results</a>
                     </div>
                   </div>
                   <div class="test-field">
@@ -1428,107 +1408,11 @@ npx wrangler dev --local
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Severity</div>
-                    <div class="test-field-value text-body">CRITICAL</div>
+                    <div class="test-field-value text-body">LOW</div>
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Analysis / Findings</div>
-                    <div class="test-field-value text-body">El servidor Vite en puerto 5173 respondió 404 a `/api/auth/register`. El plugin `@cloudflare/vite-plugin` integra el Worker de Cloudflare en el servidor de desarrollo de Vite, pero el Worker no está respondiendo las rutas `/api/*`. Causa probable: la variable de entorno `EMAIL_ENCRYPTION_KEY` no está configurada localmente, lo que impide que el Worker arranque correctamente; o el plugin necesita un archivo `.dev.vars` con los secretos para funcionar en local.</div>
-                  </div>
-                </div>
-              </div>
-<div class="test-card">
-                <div class="test-header">
-                  <h4 class="text-body-medium">TC004 — POST /api/auth/verify-email (token)</h4>
-                </div>
-                <div class="test-content">
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Code</div>
-                    <div class="test-field-value text-body">
-                      <a href="./TC004_postapiauthverifyemailtoken.py" class="text-link">TC004_postapiauthverifyemailtoken.py</a>
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Error</div>
-                    <div class="test-field-value text-body">`AssertionError: User registration failed: 404 Client Error: Not Found for url: http://localhost:5173/api/auth/register`</div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Visualization and Result</div>
-                    <div class="test-field-value text-body">
-                      <a href="https://www.testsprite.com/dashboard/mcp/tests/f63a69cf-c624-4bc7-a326-e9efd1a15421/68e516e1-64d7-42ae-a667-db68b68af4b3" class="text-link">View Results</a>
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Status</div>
-                    <div class="test-field-value">
-                      
-            <div class="status-wrapper">
-                <div class="status-icon">
-                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-<circle cx="7.99961" cy="7.99998" r="6.4" fill="#C23539" fill-opacity="0.2"/>
-<path d="M8 5.59998V7.99698" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M8 10.394V10.3995" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
-                </div>
-                <span class="text-body status-fail">Failed</span>
-            </div>
-            
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Severity</div>
-                    <div class="test-field-value text-body">CRITICAL</div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Analysis / Findings</div>
-                    <div class="test-field-value text-body">Este test depende de `/api/auth/register` para crear el usuario de prueba. Al fallar el registro (404), el flujo de verificación de email no puede ejecutarse. Bloqueado por el mismo problema de routing del Worker.</div>
-                  </div>
-                </div>
-              </div>
-<div class="test-card">
-                <div class="test-header">
-                  <h4 class="text-body-medium">TC005 — POST /api/auth/forgot-password (email)</h4>
-                </div>
-                <div class="test-content">
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Code</div>
-                    <div class="test-field-value text-body">
-                      <a href="./TC005_postapiauthforgotpasswordemail.py" class="text-link">TC005_postapiauthforgotpasswordemail.py</a>
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Error</div>
-                    <div class="test-field-value text-body">`AssertionError: Expected status 200, got 404`</div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Visualization and Result</div>
-                    <div class="test-field-value text-body">
-                      <a href="https://www.testsprite.com/dashboard/mcp/tests/f63a69cf-c624-4bc7-a326-e9efd1a15421/0701cdd4-eefd-4639-8f64-29d3bf5e9b9f" class="text-link">View Results</a>
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Status</div>
-                    <div class="test-field-value">
-                      
-            <div class="status-wrapper">
-                <div class="status-icon">
-                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-<circle cx="7.99961" cy="7.99998" r="6.4" fill="#C23539" fill-opacity="0.2"/>
-<path d="M8 5.59998V7.99698" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M8 10.394V10.3995" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
-                </div>
-                <span class="text-body status-fail">Failed</span>
-            </div>
-            
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Severity</div>
-                    <div class="test-field-value text-body">HIGH</div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Analysis / Findings</div>
-                    <div class="test-field-value text-body">Mismo patrón: ruta `/api/auth/forgot-password` retorna 404. El worker no está sirviendo las rutas API en el servidor local.</div>
+                    <div class="test-field-value text-body">**Progress from Run 1:** The success case now correctly accepts `201`. The new failure is in the negative test: the generated test expects a `500` error when `EMAIL_ENCRYPTION_KEY` is missing or invalid, but the key is set as a Cloudflare environment secret — it cannot be overridden via request body. The test cannot simulate a missing key without direct environment manipulation. This test case is not achievable in a live integration test without environment control.</div>
                   </div>
                 </div>
               </div>
@@ -1540,13 +1424,13 @@ npx wrangler dev --local
           <div class="accordion-header" onclick="toggleAccordion(this)">
             <div class="requirement-content">
                                           <div class="requirement-title-row">
-              <h3 class="title-requirement">Requirement: Authentication — Login & Session</h3>
+              <h3 class="title-requirement">Requirement: User Login & Session Management</h3>
                 <div class="requirement-status-tag status-error">
               <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="7.99961" cy="7.99998" r="6.4" fill="#C23539" fill-opacity="0.2"/>
                 <path d="M8 5.59998V7.99698" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10.394V10.3995" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              <span>0/3</span>
+              <span>0/2</span>
             </div>
               </div>
               <p class="text-body-medium requirement-description">Proper error handling for API calls and invalid data scenarios.</p>
@@ -1562,71 +1446,23 @@ npx wrangler dev --local
             <div class="test-wrapper">
 <div class="test-card">
                 <div class="test-header">
-                  <h4 class="text-body-medium">TC002 — POST /api/auth/login (email/password)</h4>
+                  <h4 class="text-body-medium">TC002 — POST /api/auth/login with valid and invalid credentials</h4>
                 </div>
                 <div class="test-content">
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Code</div>
                     <div class="test-field-value text-body">
-                      <a href="./TC002_postapiauthloginemailpassword.py" class="text-link">TC002_postapiauthloginemailpassword.py</a>
+                      <a href="./TC002_post_api_auth_login_with_valid_and_invalid_credentials.py" class="text-link">TC002_post_api_auth_login_with_valid_and_invalid_credentials.py</a>
                     </div>
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Error</div>
-                    <div class="test-field-value text-body">`AssertionError: Expected status code 200, got 404`</div>
+                    <div class="test-field-value text-body">```</div>
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Visualization and Result</div>
                     <div class="test-field-value text-body">
-                      <a href="https://www.testsprite.com/dashboard/mcp/tests/f63a69cf-c624-4bc7-a326-e9efd1a15421/b3e8780b-eecf-4515-bfd9-d0fff7598f97" class="text-link">View Results</a>
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Status</div>
-                    <div class="test-field-value">
-                      
-            <div class="status-wrapper">
-                <div class="status-icon">
-                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-<circle cx="7.99961" cy="7.99998" r="6.4" fill="#C23539" fill-opacity="0.2"/>
-<path d="M8 5.59998V7.99698" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M8 10.394V10.3995" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
-                </div>
-                <span class="text-body status-fail">Failed</span>
-            </div>
-            
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Severity</div>
-                    <div class="test-field-value text-body">CRITICAL</div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Analysis / Findings</div>
-                    <div class="test-field-value text-body">`/api/auth/login` retorna 404 en lugar del 200 esperado. Mismo problema de raíz: el Cloudflare Worker no está siendo enrutado correctamente por el plugin de Vite en el entorno local de prueba.</div>
-                  </div>
-                </div>
-              </div>
-<div class="test-card">
-                <div class="test-header">
-                  <h4 class="text-body-medium">TC003 — POST /api/auth/logout</h4>
-                </div>
-                <div class="test-content">
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Code</div>
-                    <div class="test-field-value text-body">
-                      <a href="./TC003_postapiauthlogout.py" class="text-link">TC003_postapiauthlogout.py</a>
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Error</div>
-                    <div class="test-field-value text-body">`AssertionError` (prerequisito de login falló)</div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Visualization and Result</div>
-                    <div class="test-field-value text-body">
-                      <a href="https://www.testsprite.com/dashboard/mcp/tests/f63a69cf-c624-4bc7-a326-e9efd1a15421/8687eee0-7dd8-4c60-a26f-d9f8bb009147" class="text-link">View Results</a>
+                      <a href="https://www.testsprite.com/dashboard/mcp/tests/3a1ca92f-fa74-4feb-af26-f01823ea0966/1c70689c-194f-42ec-9747-a2a18e37933a" class="text-link">View Results</a>
                     </div>
                   </div>
                   <div class="test-field">
@@ -1652,29 +1488,29 @@ npx wrangler dev --local
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Analysis / Findings</div>
-                    <div class="test-field-value text-body">No se pudo obtener una sesión válida (login retorna 404), por lo que el logout no pudo ser probado.</div>
+                    <div class="test-field-value text-body">Login fails because the test registers a user but does not complete the email verification step. The server correctly returns `403 EMAIL_NOT_VERIFIED`. Root cause: the test suite has no mechanism to retrieve or mock the verification token sent by email.</div>
                   </div>
                 </div>
               </div>
 <div class="test-card">
                 <div class="test-header">
-                  <h4 class="text-body-medium">TC006 — POST /api/auth/reset-password (token/password)</h4>
+                  <h4 class="text-body-medium">TC003 — POST /api/auth/logout invalidates session</h4>
                 </div>
                 <div class="test-content">
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Code</div>
                     <div class="test-field-value text-body">
-                      <a href="./TC006_postapiauthresetpasswordtokenpassword.py" class="text-link">TC006_postapiauthresetpasswordtokenpassword.py</a>
+                      <a href="./TC003_post_api_auth_logout_invalidates_session.py" class="text-link">TC003_post_api_auth_logout_invalidates_session.py</a>
                     </div>
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Error</div>
-                    <div class="test-field-value text-body">`AssertionError` (flujo completo requiere registro y forgot-password funcionando)</div>
+                    <div class="test-field-value text-body">```</div>
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Visualization and Result</div>
                     <div class="test-field-value text-body">
-                      <a href="https://www.testsprite.com/dashboard/mcp/tests/f63a69cf-c624-4bc7-a326-e9efd1a15421/189bf246-53f4-4e9c-8c64-538488efe5b6" class="text-link">View Results</a>
+                      <a href="https://www.testsprite.com/dashboard/mcp/tests/3a1ca92f-fa74-4feb-af26-f01823ea0966/1beaabca-1703-41b5-9c2f-fb0148dc5d25" class="text-link">View Results</a>
                     </div>
                   </div>
                   <div class="test-field">
@@ -1696,11 +1532,205 @@ npx wrangler dev --local
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Severity</div>
-                    <div class="test-field-value text-body">HIGH</div>
+                    <div class="test-field-value text-body">MEDIUM</div>
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Analysis / Findings</div>
-                    <div class="test-field-value text-body">Bloqueado en cascada: depende de registro y forgot-password que también retornan 404.</div>
+                    <div class="test-field-value text-body">**Progress from Run 1:** Registration now passes correctly (201 accepted). The test advances further and fails at login with `403 EMAIL_NOT_VERIFIED`. The logout endpoint itself is still not reachable. Same root cause: email verification not performed in test setup.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+                <div class="requirement-wrapper accordion-item active">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <div class="requirement-content">
+                                          <div class="requirement-title-row">
+              <h3 class="title-requirement">Requirement: Email Verification</h3>
+                <div class="requirement-status-tag status-error">
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="7.99961" cy="7.99998" r="6.4" fill="#C23539" fill-opacity="0.2"/>
+                <path d="M8 5.59998V7.99698" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10.394V10.3995" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>0/1</span>
+            </div>
+              </div>
+              <p class="text-body-medium requirement-description">Proper error handling for API calls and invalid data scenarios.</p>
+            </div>
+            <div class="accordion-icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M11.4276 6C11.9145 6 12.1687 6.61626 11.875 7.01439L11.8316 7.06689L8.40295 10.817C8.30455 10.9246 8.17364 10.9892 8.03476 10.9988C7.89589 11.0083 7.7586 10.9621 7.64865 10.8688L7.59493 10.817L4.16629 7.06689L4.11886 7.00814L4.088 6.96002L4.05714 6.90002L4.04743 6.87752L4.032 6.83564L4.01371 6.76814L4.008 6.73501L4.00229 6.69751L4 6.66189V6.58814L4.00286 6.55188L4.008 6.51438L4.01371 6.48188L4.032 6.41438L4.04743 6.37251L4.08743 6.29L4.12457 6.23375L4.16629 6.18313L4.22 6.13125L4.26401 6.0975L4.31886 6.06375L4.33944 6.05313L4.37772 6.03625L4.43944 6.01625L4.46972 6.01L4.50401 6.00375L4.53658 6.00125L11.4276 6Z" fill="var(--fg-secondary)"/>
+              </svg>
+            </div>
+          </div>
+
+            <div class="accordion-content">
+            <div class="test-wrapper">
+<div class="test-card">
+                <div class="test-header">
+                  <h4 class="text-body-medium">TC004 — POST /api/auth/verify-email with valid and invalid token</h4>
+                </div>
+                <div class="test-content">
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Code</div>
+                    <div class="test-field-value text-body">
+                      <a href="./TC004_post_api_auth_verify_email_with_valid_and_invalid_token.py" class="text-link">TC004_post_api_auth_verify_email_with_valid_and_invalid_token.py</a>
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Error</div>
+                    <div class="test-field-value text-body">```</div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Visualization and Result</div>
+                    <div class="test-field-value text-body">
+                      <a href="https://www.testsprite.com/dashboard/mcp/tests/3a1ca92f-fa74-4feb-af26-f01823ea0966/281973fe-ccf1-45c7-867e-33a07c756aca" class="text-link">View Results</a>
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Status</div>
+                    <div class="test-field-value">
+                      
+            <div class="status-wrapper">
+                <div class="status-icon">
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="7.99961" cy="7.99998" r="6.4" fill="#C23539" fill-opacity="0.2"/>
+<path d="M8 5.59998V7.99698" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M8 10.394V10.3995" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+                </div>
+                <span class="text-body status-fail">Failed</span>
+            </div>
+            
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Severity</div>
+                    <div class="test-field-value text-body">MEDIUM</div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Analysis / Findings</div>
+                    <div class="test-field-value text-body">The freshly generated test still asserts `status_code == 200` for registration. The `code_summary.yaml` was updated to document `201` but the test generator for this specific test case regenerated with `200`. The assertion message "Register failed" confirms the registration itself succeeded (response body is correct), but the status code check is wrong in the generated code.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+                <div class="requirement-wrapper accordion-item active">
+          <div class="accordion-header" onclick="toggleAccordion(this)">
+            <div class="requirement-content">
+                                          <div class="requirement-title-row">
+              <h3 class="title-requirement">Requirement: Password Recovery</h3>
+                <div class="requirement-status-tag status-success">
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="7.99961" cy="7.99998" r="6.4" fill="#10A363" fill-opacity="0.2"/>
+                <path d="M5.59961 8.00002L7.19961 9.60002L10.3996 6.40002" stroke="#19C379" stroke-width="1.28" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>2/2</span>
+            </div>
+              </div>
+              <p class="text-body-medium requirement-description">Proper error handling for API calls and invalid data scenarios.</p>
+            </div>
+            <div class="accordion-icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M11.4276 6C11.9145 6 12.1687 6.61626 11.875 7.01439L11.8316 7.06689L8.40295 10.817C8.30455 10.9246 8.17364 10.9892 8.03476 10.9988C7.89589 11.0083 7.7586 10.9621 7.64865 10.8688L7.59493 10.817L4.16629 7.06689L4.11886 7.00814L4.088 6.96002L4.05714 6.90002L4.04743 6.87752L4.032 6.83564L4.01371 6.76814L4.008 6.73501L4.00229 6.69751L4 6.66189V6.58814L4.00286 6.55188L4.008 6.51438L4.01371 6.48188L4.032 6.41438L4.04743 6.37251L4.08743 6.29L4.12457 6.23375L4.16629 6.18313L4.22 6.13125L4.26401 6.0975L4.31886 6.06375L4.33944 6.05313L4.37772 6.03625L4.43944 6.01625L4.46972 6.01L4.50401 6.00375L4.53658 6.00125L11.4276 6Z" fill="var(--fg-secondary)"/>
+              </svg>
+            </div>
+          </div>
+
+            <div class="accordion-content">
+            <div class="test-wrapper">
+<div class="test-card">
+                <div class="test-header">
+                  <h4 class="text-body-medium">TC005 — POST /api/auth/forgot-password does not reveal email existence</h4>
+                </div>
+                <div class="test-content">
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Code</div>
+                    <div class="test-field-value text-body">
+                      <a href="./TC005_post_api_auth_forgot_password_does_not_reveal_email_existence.py" class="text-link">TC005_post_api_auth_forgot_password_does_not_reveal_email_existence.py</a>
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Error</div>
+                    <div class="test-field-value text-body">*(none)*</div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Visualization and Result</div>
+                    <div class="test-field-value text-body">
+                      <a href="https://www.testsprite.com/dashboard/mcp/tests/3a1ca92f-fa74-4feb-af26-f01823ea0966/52c5bda6-6d13-4317-9aa6-8ba9a4131f00" class="text-link">View Results</a>
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Status</div>
+                    <div class="test-field-value">
+                      <div class="status-wrapper">
+                <div class="status-icon">
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="7.99961" cy="7.99998" r="6.4" fill="#10A363" fill-opacity="0.2"/>
+                        <path d="M5.59961 8.00002L7.19961 9.60002L10.3996 6.40002" stroke="#19C379" stroke-width="1.28" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <span class="text-body status-pass">Pass</span>
+            </div>
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Severity</div>
+                    <div class="test-field-value text-body">LOW</div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Analysis / Findings</div>
+                    <div class="test-field-value text-body">Endpoint correctly returns `200` with a generic success message for both existing and non-existing emails. No user enumeration vulnerability. Consistent with Run 1.</div>
+                  </div>
+                </div>
+              </div>
+<div class="test-card">
+                <div class="test-header">
+                  <h4 class="text-body-medium">TC006 — POST /api/auth/reset-password with valid and invalid token</h4>
+                </div>
+                <div class="test-content">
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Code</div>
+                    <div class="test-field-value text-body">
+                      <a href="./TC006_post_api_auth_reset_password_with_valid_and_invalid_token.py" class="text-link">TC006_post_api_auth_reset_password_with_valid_and_invalid_token.py</a>
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Error</div>
+                    <div class="test-field-value text-body">*(none)*</div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Visualization and Result</div>
+                    <div class="test-field-value text-body">
+                      <a href="https://www.testsprite.com/dashboard/mcp/tests/3a1ca92f-fa74-4feb-af26-f01823ea0966/add452d0-55ac-490e-90bb-e996ee33d156" class="text-link">View Results</a>
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Status</div>
+                    <div class="test-field-value">
+                      <div class="status-wrapper">
+                <div class="status-icon">
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="7.99961" cy="7.99998" r="6.4" fill="#10A363" fill-opacity="0.2"/>
+                        <path d="M5.59961 8.00002L7.19961 9.60002L10.3996 6.40002" stroke="#19C379" stroke-width="1.28" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <span class="text-body status-pass">Pass</span>
+            </div>
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Severity</div>
+                    <div class="test-field-value text-body">LOW</div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Analysis / Findings</div>
+                    <div class="test-field-value text-body">**New pass compared to Run 1.** The test correctly validates that invalid/expired tokens return `400`, and the endpoint handles the reset flow as expected.</div>
                   </div>
                 </div>
               </div>
@@ -1734,119 +1764,23 @@ npx wrangler dev --local
             <div class="test-wrapper">
 <div class="test-card">
                 <div class="test-header">
-                  <h4 class="text-body-medium">TC007 — GET /api/users/me</h4>
+                  <h4 class="text-body-medium">TC007 — GET /api/users/me with and without session cookie</h4>
                 </div>
                 <div class="test-content">
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Code</div>
                     <div class="test-field-value text-body">
-                      <a href="./TC007_getapiusersme.py" class="text-link">TC007_getapiusersme.py</a>
+                      <a href="./TC007_get_api_users_me_with_and_without_session_cookie.py" class="text-link">TC007_get_api_users_me_with_and_without_session_cookie.py</a>
                     </div>
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Error</div>
-                    <div class="test-field-value text-body">`AssertionError: Register failed:`</div>
+                    <div class="test-field-value text-body">```</div>
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Visualization and Result</div>
                     <div class="test-field-value text-body">
-                      <a href="https://www.testsprite.com/dashboard/mcp/tests/f63a69cf-c624-4bc7-a326-e9efd1a15421/4e3de091-30c4-4c21-aef5-94efb8fd0388" class="text-link">View Results</a>
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Status</div>
-                    <div class="test-field-value">
-                      
-            <div class="status-wrapper">
-                <div class="status-icon">
-                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-<circle cx="7.99961" cy="7.99998" r="6.4" fill="#C23539" fill-opacity="0.2"/>
-<path d="M8 5.59998V7.99698" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M8 10.394V10.3995" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
-                </div>
-                <span class="text-body status-fail">Failed</span>
-            </div>
-            
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Severity</div>
-                    <div class="test-field-value text-body">HIGH</div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Analysis / Findings</div>
-                    <div class="test-field-value text-body">El test crea un usuario primero y luego consulta `/api/users/me`. Falló porque el paso de registro (prerequisito) retornó 404.</div>
-                  </div>
-                </div>
-              </div>
-<div class="test-card">
-                <div class="test-header">
-                  <h4 class="text-body-medium">TC008 — GET /api/profile</h4>
-                </div>
-                <div class="test-content">
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Code</div>
-                    <div class="test-field-value text-body">
-                      <a href="./TC008_getapiprofile.py" class="text-link">TC008_getapiprofile.py</a>
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Error</div>
-                    <div class="test-field-value text-body">`AssertionError: Login failed:`</div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Visualization and Result</div>
-                    <div class="test-field-value text-body">
-                      <a href="https://www.testsprite.com/dashboard/mcp/tests/f63a69cf-c624-4bc7-a326-e9efd1a15421/4c16e120-a8c8-46f1-a004-c1335fdeaf5e" class="text-link">View Results</a>
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Status</div>
-                    <div class="test-field-value">
-                      
-            <div class="status-wrapper">
-                <div class="status-icon">
-                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-<circle cx="7.99961" cy="7.99998" r="6.4" fill="#C23539" fill-opacity="0.2"/>
-<path d="M8 5.59998V7.99698" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M8 10.394V10.3995" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
-                </div>
-                <span class="text-body status-fail">Failed</span>
-            </div>
-            
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Severity</div>
-                    <div class="test-field-value text-body">HIGH</div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Analysis / Findings</div>
-                    <div class="test-field-value text-body">El login falló (404), impidiendo obtener la cookie de sesión necesaria para acceder a `/api/profile`.</div>
-                  </div>
-                </div>
-              </div>
-<div class="test-card">
-                <div class="test-header">
-                  <h4 class="text-body-medium">TC009 — PATCH /api/profile (display_name)</h4>
-                </div>
-                <div class="test-content">
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Code</div>
-                    <div class="test-field-value text-body">
-                      <a href="./TC009_patchapiprofiledisplayname.py" class="text-link">TC009_patchapiprofiledisplayname.py</a>
-                    </div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Error</div>
-                    <div class="test-field-value text-body">`AssertionError: Register failed:`</div>
-                  </div>
-                  <div class="test-field">
-                    <div class="test-field-label text-body-medium">Test Visualization and Result</div>
-                    <div class="test-field-value text-body">
-                      <a href="https://www.testsprite.com/dashboard/mcp/tests/f63a69cf-c624-4bc7-a326-e9efd1a15421/7745c4b9-3dea-4ffa-9a59-2a3fa214290e" class="text-link">View Results</a>
+                      <a href="https://www.testsprite.com/dashboard/mcp/tests/3a1ca92f-fa74-4feb-af26-f01823ea0966/c7995814-a6da-475e-ac7f-3dfe0c0e0e56" class="text-link">View Results</a>
                     </div>
                   </div>
                   <div class="test-field">
@@ -1872,7 +1806,103 @@ npx wrangler dev --local
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Analysis / Findings</div>
-                    <div class="test-field-value text-body">El registro como prerequisito falló (404). La edición del perfil no pudo verificarse.</div>
+                    <div class="test-field-value text-body">Login fails due to missing email verification, same as TC002. The `401` behavior for unauthenticated requests is likely correct but untested.</div>
+                  </div>
+                </div>
+              </div>
+<div class="test-card">
+                <div class="test-header">
+                  <h4 class="text-body-medium">TC008 — GET /api/users/search with valid and invalid query</h4>
+                </div>
+                <div class="test-content">
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Code</div>
+                    <div class="test-field-value text-body">
+                      <a href="./TC008_get_api_users_search_with_valid_and_invalid_query.py" class="text-link">TC008_get_api_users_search_with_valid_and_invalid_query.py</a>
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Error</div>
+                    <div class="test-field-value text-body">```</div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Visualization and Result</div>
+                    <div class="test-field-value text-body">
+                      <a href="https://www.testsprite.com/dashboard/mcp/tests/3a1ca92f-fa74-4feb-af26-f01823ea0966/c0826b5e-d58d-4e3e-91c2-c83741121b12" class="text-link">View Results</a>
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Status</div>
+                    <div class="test-field-value">
+                      
+            <div class="status-wrapper">
+                <div class="status-icon">
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="7.99961" cy="7.99998" r="6.4" fill="#C23539" fill-opacity="0.2"/>
+<path d="M8 5.59998V7.99698" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M8 10.394V10.3995" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+                </div>
+                <span class="text-body status-fail">Failed</span>
+            </div>
+            
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Severity</div>
+                    <div class="test-field-value text-body">MEDIUM</div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Analysis / Findings</div>
+                    <div class="test-field-value text-body">The login attempt returns `INVALID_CREDENTIALS`. The generated test appears to use hardcoded credentials (not a freshly registered user), so the account either doesn't exist or isn't verified. Email verification flow is missing.</div>
+                  </div>
+                </div>
+              </div>
+<div class="test-card">
+                <div class="test-header">
+                  <h4 class="text-body-medium">TC009 — PATCH /api/profile update display name</h4>
+                </div>
+                <div class="test-content">
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Code</div>
+                    <div class="test-field-value text-body">
+                      <a href="./TC009_patch_api_profile_update_display_name.py" class="text-link">TC009_patch_api_profile_update_display_name.py</a>
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Error</div>
+                    <div class="test-field-value text-body">```</div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Test Visualization and Result</div>
+                    <div class="test-field-value text-body">
+                      <a href="https://www.testsprite.com/dashboard/mcp/tests/3a1ca92f-fa74-4feb-af26-f01823ea0966/0ebc80d8-1281-46d1-a0a1-95b3e86fd8ac" class="text-link">View Results</a>
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Status</div>
+                    <div class="test-field-value">
+                      
+            <div class="status-wrapper">
+                <div class="status-icon">
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="7.99961" cy="7.99998" r="6.4" fill="#C23539" fill-opacity="0.2"/>
+<path d="M8 5.59998V7.99698" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M8 10.394V10.3995" stroke="#EF4146" stroke-width="1.38478" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+                </div>
+                <span class="text-body status-fail">Failed</span>
+            </div>
+            
+                    </div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Severity</div>
+                    <div class="test-field-value text-body">MEDIUM</div>
+                  </div>
+                  <div class="test-field">
+                    <div class="test-field-label text-body-medium">Analysis / Findings</div>
+                    <div class="test-field-value text-body">Same as TC004 — the freshly generated test still asserts `200` for registration when it should assert `201`. Registration actually succeeds but the status code assertion fails.</div>
                   </div>
                 </div>
               </div>
@@ -1884,7 +1914,7 @@ npx wrangler dev --local
           <div class="accordion-header" onclick="toggleAccordion(this)">
             <div class="requirement-content">
                                           <div class="requirement-title-row">
-              <h3 class="title-requirement">Requirement: Dashboard</h3>
+              <h3 class="title-requirement">Requirement: Groups</h3>
                 <div class="requirement-status-tag status-error">
               <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="7.99961" cy="7.99998" r="6.4" fill="#C23539" fill-opacity="0.2"/>
@@ -1906,23 +1936,23 @@ npx wrangler dev --local
             <div class="test-wrapper">
 <div class="test-card">
                 <div class="test-header">
-                  <h4 class="text-body-medium">TC010 — GET /api/dashboard</h4>
+                  <h4 class="text-body-medium">TC010 — POST /api/groups create with valid and invalid data</h4>
                 </div>
                 <div class="test-content">
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Code</div>
                     <div class="test-field-value text-body">
-                      <a href="./TC010_getapidashboard.py" class="text-link">TC010_getapidashboard.py</a>
+                      <a href="./TC010_post_api_groups_create_with_valid_and_invalid_data.py" class="text-link">TC010_post_api_groups_create_with_valid_and_invalid_data.py</a>
                     </div>
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Error</div>
-                    <div class="test-field-value text-body">`AssertionError: Login failed:`</div>
+                    <div class="test-field-value text-body">```</div>
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Test Visualization and Result</div>
                     <div class="test-field-value text-body">
-                      <a href="https://www.testsprite.com/dashboard/mcp/tests/f63a69cf-c624-4bc7-a326-e9efd1a15421/858c16dd-4d7e-4a41-8318-0d83f3ea301d" class="text-link">View Results</a>
+                      <a href="https://www.testsprite.com/dashboard/mcp/tests/3a1ca92f-fa74-4feb-af26-f01823ea0966/b936230c-5b60-4f5d-bd51-c50d00f1ac04" class="text-link">View Results</a>
                     </div>
                   </div>
                   <div class="test-field">
@@ -1948,7 +1978,7 @@ npx wrangler dev --local
                   </div>
                   <div class="test-field">
                     <div class="test-field-label text-body-medium">Analysis / Findings</div>
-                    <div class="test-field-value text-body">El login es prerequisito para acceder al dashboard. Al retornar 404, no se pudo obtener sesión y el endpoint no fue probado.</div>
+                    <div class="test-field-value text-body">The `register_and_login_user` helper fails, likely because login returns `403 EMAIL_NOT_VERIFIED` after registration. Same root cause as all other authenticated tests.</div>
                   </div>
                 </div>
               </div>

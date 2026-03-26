@@ -1,66 +1,45 @@
 import requests
 import uuid
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from helpers import register_verify_and_login, make_session
 
 BASE_URL = "http://localhost:5173/api"
 TIMEOUT = 30
 
+
 def test_patch_api_profile_display_name():
-    # Use a unique email to register a new user
-    unique_email = f"testuser_{uuid.uuid4().hex}@example.com"
-    password = "StrongPassw0rd!"
+    session = make_session()
+    new_display_name = "NewDisplayName123"
 
-    session = requests.Session()
+    register_email = f"tc009_{uuid.uuid4().hex[:8]}@example.com"
+    register_password = "StrongPassw0rd!"
     try:
-        # Register new user
-        register_resp = session.post(
-            f"{BASE_URL}/auth/register",
-            json={"email": unique_email, "password": password},
-            timeout=TIMEOUT
-        )
-        assert register_resp.status_code == 200, f"Register failed: {register_resp.text}"
-        register_data = register_resp.json()
-        assert register_data.get("success") is True
+        # Register, verify email via D1 query, and login
+        register_verify_and_login(session, register_email, register_password)
 
-        # Login to get session cookie
-        login_resp = session.post(
-            f"{BASE_URL}/auth/login",
-            json={"email": unique_email, "password": password},
-            timeout=TIMEOUT
-        )
-        assert login_resp.status_code == 200, f"Login failed: {login_resp.text}"
-        login_data = login_resp.json()
-        assert login_data.get("success") is True
-        assert "session" in session.cookies or any(cookie.name.lower().startswith("session") for cookie in session.cookies), "Session cookie not set"
+        # Update the authenticated user's display name
+        patch_payload = {"display_name": new_display_name}
+        r = session.patch(f"{BASE_URL}/profile", json=patch_payload, timeout=TIMEOUT)
+        assert r.status_code == 200, f"Profile update failed: {r.text}"
+        json_resp = r.json()
+        assert json_resp.get("success") is True
 
-        # Update display name
-        new_display_name = f"DisplayName_{uuid.uuid4().hex[:8]}"
-        patch_resp = session.patch(
-            f"{BASE_URL}/profile",
-            json={"display_name": new_display_name},
-            timeout=TIMEOUT
-        )
-        assert patch_resp.status_code == 200, f"Patch failed: {patch_resp.text}"
-        patch_data = patch_resp.json()
-        assert patch_data.get("success") is True
-
-        # Verify update by fetching profile
-        profile_resp = session.get(
-            f"{BASE_URL}/profile",
-            timeout=TIMEOUT
-        )
-        assert profile_resp.status_code == 200, f"Get profile failed: {profile_resp.text}"
-        profile_data = profile_resp.json()
-        assert profile_data.get("display_name") == new_display_name
+        # Retrieve profile to verify update
+        r = session.get(f"{BASE_URL}/profile", timeout=TIMEOUT)
+        assert r.status_code == 200, f"Profile fetch failed: {r.text}"
+        json_resp = r.json()
+        assert json_resp.get("display_name") == new_display_name
+        assert "friend_code" in json_resp
+        assert isinstance(json_resp["friend_code"], str)
 
     finally:
-        # Logout to invalidate session
-        logout_resp = session.post(
-            f"{BASE_URL}/auth/logout",
-            timeout=TIMEOUT
-        )
-        # logout may fail if session already invalidated, do not fail test
-        if logout_resp.status_code == 200:
-            logout_data = logout_resp.json()
-            assert logout_data.get("success") is True
+        # Logout and cleanup - no direct delete user endpoint is described
+        try:
+            session.post(f"{BASE_URL}/auth/logout", timeout=TIMEOUT)
+        except Exception:
+            pass
+
 
 test_patch_api_profile_display_name()

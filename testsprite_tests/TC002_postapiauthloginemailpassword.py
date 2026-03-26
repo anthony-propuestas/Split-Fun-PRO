@@ -1,48 +1,47 @@
 import requests
+import uuid
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from helpers import register_verify_and_login, make_session
 
 BASE_URL = "http://localhost:5173/api"
+LOGIN_URL = f"{BASE_URL}/auth/login"
+LOGOUT_URL = f"{BASE_URL}/auth/logout"
 TIMEOUT = 30
 
+
 def test_postapiauthloginemailpassword():
-    # Prepare valid credentials for login
-    # NOTE: Replace these with valid test credentials present in the system for this test to work
-    email = "testuser@example.com"
-    password = "StrongPassword123!"
-
-    url = f"{BASE_URL}/auth/login"
-    headers = {"Content-Type": "application/json"}
-    payload = {"email": email, "password": password}
-
+    test_email = f"tc002_{uuid.uuid4().hex[:8]}@example.com"
+    test_password = "Str0ngP@ssw0rd!"
+    session = make_session()
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=TIMEOUT)
-    except requests.RequestException as e:
-        assert False, f"Request failed: {e}"
+        # Register, verify email via D1 query, and login
+        login_resp = register_verify_and_login(session, test_email, test_password)
 
-    # Assert HTTP status code 200 OK
-    assert response.status_code == 200, f"Expected status code 200, got {response.status_code}"
+        login_json = login_resp.json()
+        assert login_json.get("success") is True
 
-    # Assert response JSON success true
-    try:
-        response_json = response.json()
-    except ValueError:
-        assert False, "Response is not valid JSON"
+        # Verify HTTP-only session cookie is set
+        cookies = login_resp.cookies
+        assert cookies, "No cookies set by login response"
+        set_cookie_headers = login_resp.headers.get("Set-Cookie")
+        assert set_cookie_headers is not None
+        assert "HttpOnly" in set_cookie_headers and "session" in set_cookie_headers.lower()
 
-    assert response_json.get("success") is True, f"Expected success true in response JSON, got {response_json}"
+        # Test login with invalid credentials
+        bad_resp = session.post(
+            LOGIN_URL,
+            json={"email": test_email, "password": "wrongpassword"},
+            timeout=TIMEOUT,
+        )
+        assert bad_resp.status_code == 401
+        assert bad_resp.json().get("error") == "INVALID_CREDENTIALS"
 
-    # Assert HTTP-only session cookie is set
-    cookies = response.cookies
-    cookie_set = False
-    for cookie in cookies:
-        # Check if there's a cookie with HttpOnly flag set
-        if cookie.has_nonstandard_attr("HttpOnly") or "httponly" in cookie._rest.keys():
-            cookie_set = True
-            break
-    # Fallback check: Usually requests.cookies._rest stores attributes like HttpOnly lowercase
-    # Sometimes requests does not expose HttpOnly attribute well, so also check if cookie names present
-    if not cookie_set:
-        # Check if any cookies returned (likely session cookie)
-        cookie_set = len(cookies) > 0
-
-    assert cookie_set, "HTTP-only session cookie was not set in response"
+    finally:
+        try:
+            session.post(LOGOUT_URL, timeout=TIMEOUT)
+        except Exception:
+            pass
 
 test_postapiauthloginemailpassword()

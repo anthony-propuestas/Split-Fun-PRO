@@ -20,6 +20,9 @@ worker-configuration.d.ts
 # ── TestSprite (contiene API keys y credenciales de proxy) ────────────────────
 testsprite_tests/tmp/
 
+# ── Seeds de desarrollo local (no para producción) ────────────────────────────
+seed-test-user.sql
+
 # ── OS / IDE ──────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
