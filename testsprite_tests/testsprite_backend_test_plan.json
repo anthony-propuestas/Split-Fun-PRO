@@ -1,0 +1,52 @@
+[
+  {
+    "id": "TC001",
+    "title": "postapiauthregisteremailpassword",
+    "description": "Test user registration with valid email and password, verify success response and that verification email is sent."
+  },
+  {
+    "id": "TC002",
+    "title": "postapiauthloginemailpassword",
+    "description": "Test user login with correct credentials, verify success response and HTTP-only session cookie is set."
+  },
+  {
+    "id": "TC003",
+    "title": "postapiauthlogout",
+    "description": "Test user logout with valid session cookie, verify session invalidation and success response."
+  },
+  {
+    "id": "TC004",
+    "title": "postapiauthverifyemailtoken",
+    "description": "Test email verification with valid token, verify success response."
+  },
+  {
+    "id": "TC005",
+    "title": "postapiauthforgotpasswordemail",
+    "description": "Test password reset request with valid email, verify success response without revealing email existence."
+  },
+  {
+    "id": "TC006",
+    "title": "postapiauthresetpasswordtokenpassword",
+    "description": "Test password reset with valid token and new password, verify success response and session invalidation."
+  },
+  {
+    "id": "TC007",
+    "title": "getapiusersme",
+    "description": "Test retrieval of authenticated user's basic info with valid session cookie, verify correct user data is returned."
+  },
+  {
+    "id": "TC008",
+    "title": "getapiprofile",
+    "description": "Test retrieval of authenticated user's profile with valid session cookie, verify display name and friend code are returned."
+  },
+  {
+    "id": "TC009",
+    "title": "patchapiprofiledisplayname",
+    "description": "Test updating authenticated user's display name with valid session cookie and valid new name, verify success response."
+  },
+  {
+    "id": "TC010",
+    "title": "getapidashboard",
+    "description": "Test retrieval of dashboard summary with valid session cookie, verify groups, recent expenses, total owed and total owing are returned."
+  }
+]
