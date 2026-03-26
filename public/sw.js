@@ -1,19 +1,10 @@
-const CACHE_NAME = 'splitfun-v1';
-const STATIC_ASSETS = [
-  '/',
-  '/dashboard',
-  '/groups',
-  '/expenses',
-  '/profile',
-  '/logros',
-  '/don-barriga'
-];
+const CACHE_NAME = 'splitfun-v2';
 
-// Install event - cache static assets
+// Install event - only cache the shell (index.html), not app routes
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+      return cache.add('/');
     })
   );
   self.skipWaiting();
@@ -33,31 +24,25 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch event - network first, fallback to cache
+// Fetch event
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests
+  // Skip non-GET requests - never intercept
   if (request.method !== 'GET') return;
 
-  // Skip API requests from caching (always fetch fresh)
+  // API requests: always go to network, never serve from cache
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request).catch(() => {
-        // Return cached API response if offline
-        return caches.match(request);
-      })
-    );
+    event.respondWith(fetch(request));
     return;
   }
 
-  // For navigation requests (HTML pages)
+  // Navigation requests (HTML pages): network first, fallback to index.html shell
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Cache successful responses
           if (response.ok) {
             const responseClone = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -67,22 +52,15 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // Fallback to cache when offline
-          return caches.match(request).then((cached) => {
-            return cached || caches.match('/');
-          });
+          // Offline fallback: serve the cached shell
+          return caches.match('/');
         })
     );
     return;
   }
 
-  // For static assets - cache first, then network
-  if (
-    url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2|ico)$/) ||
-    url.hostname.includes('mochausercontent.com') ||
-    url.hostname.includes('fonts.googleapis.com') ||
-    url.hostname.includes('fonts.gstatic.com')
-  ) {
+  // Static assets (js, css, fonts, images): cache first, then network
+  if (url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2|ico|webp)$/)) {
     event.respondWith(
       caches.match(request).then((cached) => {
         const fetchPromise = fetch(request).then((response) => {
@@ -100,18 +78,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Default: network first
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response.ok) {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, responseClone);
-          });
-        }
-        return response;
-      })
-      .catch(() => caches.match(request))
-  );
+  // Default: network only
+  event.respondWith(fetch(request));
 });
