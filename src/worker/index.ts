@@ -10,6 +10,8 @@ import {
   hashPassword,
   verifyPassword,
   importEmailKey,
+  type EncryptedEmail,
+  type PasswordHashResult,
 } from "./crypto";
 
 // ── Auth types ────────────────────────────────────────────────────────────────
@@ -162,12 +164,27 @@ app.post("/api/auth/register", async (c) => {
       );
     }
 
-    const emailHash = await hashEmail(email);
-    const existing = await queryOne<{ id: string }>(
-      c.env.DB,
-      "SELECT id FROM users WHERE email_hash = ?",
-      emailHash
-    );
+    // Paso 1: Hash del email para búsqueda en DB
+    let emailHash!: string;
+    try {
+      emailHash = await hashEmail(email);
+    } catch (e) {
+      console.error("[Auth] register: EMAIL_HASH_FAILED", e);
+      return c.json({ error: "EMAIL_HASH_FAILED", message: "Error interno al procesar el correo." }, 500);
+    }
+
+    // Paso 2: Verificar si el email ya existe en la DB
+    let existing: { id: string } | null;
+    try {
+      existing = await queryOne<{ id: string }>(
+        c.env.DB,
+        "SELECT id FROM users WHERE email_hash = ?",
+        emailHash
+      );
+    } catch (e) {
+      console.error("[Auth] register: DB_LOOKUP_FAILED", e);
+      return c.json({ error: "DB_LOOKUP_FAILED", message: "Error al consultar la base de datos." }, 500);
+    }
 
     if (existing) {
       // Zero trust: no revelar si el correo existe ya
@@ -181,67 +198,120 @@ app.post("/api/auth/register", async (c) => {
       );
     }
 
-    const key = await getEmailKey(c.env);
-    const encrypted = await encryptEmail(email, key);
-    const pwd = await hashPassword(password);
+    // Paso 3: Obtener clave de cifrado (requiere EMAIL_ENCRYPTION_KEY en env)
+    let key!: CryptoKey;
+    try {
+      key = await getEmailKey(c.env);
+    } catch (e) {
+      console.error("[Auth] register: EMAIL_KEY_FAILED", e);
+      return c.json({ error: "EMAIL_KEY_FAILED", message: "Error de configuración del servidor." }, 500);
+    }
 
+    // Paso 4: Cifrar email con AES-GCM
+    let encrypted!: EncryptedEmail;
+    try {
+      encrypted = await encryptEmail(email, key);
+    } catch (e) {
+      console.error("[Auth] register: EMAIL_ENCRYPT_FAILED", e);
+      return c.json({ error: "EMAIL_ENCRYPT_FAILED", message: "Error interno al cifrar el correo." }, 500);
+    }
+
+    // Paso 5: Hash de contraseña con PBKDF2
+    let pwd!: PasswordHashResult;
+    try {
+      pwd = await hashPassword(password);
+    } catch (e) {
+      console.error("[Auth] register: PASSWORD_HASH_FAILED", e);
+      return c.json({ error: "PASSWORD_HASH_FAILED", message: "Error interno al procesar la contraseña." }, 500);
+    }
+
+    // Paso 6: Insertar usuario en DB
     const userId = crypto.randomUUID();
     const createdAt = nowIso();
-
-    await run(
-      c.env.DB,
-      `
+    try {
+      await run(
+        c.env.DB,
+        `
     INSERT INTO users (id, email_encrypted, email_iv, email_hash, password_hash, password_algo, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `,
-      userId,
-      encrypted.ciphertextHex,
-      encrypted.ivHex,
-      emailHash,
-      pwd.hash,
-      pwd.algo,
-      createdAt,
-      createdAt
-    );
+        userId,
+        encrypted.ciphertextHex,
+        encrypted.ivHex,
+        emailHash,
+        pwd.hash,
+        pwd.algo,
+        createdAt,
+        createdAt
+      );
+    } catch (e) {
+      console.error("[Auth] register: USER_INSERT_FAILED", e);
+      return c.json({ error: "USER_INSERT_FAILED", message: "Error al crear el usuario en la base de datos." }, 500);
+    }
 
-    // Crear perfil básico con friend_code si no existe
+    // Paso 7: Crear perfil con friend_code único
     let friendCode = generateFriendCode(userId);
     let attempts = 0;
     const maxAttempts = 10;
+    let profileCreated = false;
     while (attempts < maxAttempts) {
-      const existingCode = await queryOne(
-        c.env.DB,
-        "SELECT id FROM user_profiles WHERE friend_code = ?",
-        friendCode
-      );
-      if (!existingCode) {
-        await run(
+      let existingCode: unknown;
+      try {
+        existingCode = await queryOne(
           c.env.DB,
-          "INSERT INTO user_profiles (user_id, friend_code, display_name) VALUES (?, ?, ?)",
-          userId,
-          friendCode,
-          email.split("@")[0] || "Usuario"
+          "SELECT id FROM user_profiles WHERE friend_code = ?",
+          friendCode
         );
-        break;
+      } catch (e) {
+        console.error("[Auth] register: PROFILE_DB_LOOKUP_FAILED", e);
+        return c.json({ error: "PROFILE_DB_LOOKUP_FAILED", message: "Error al verificar el código de amigo." }, 500);
+      }
+      if (!existingCode) {
+        try {
+          await run(
+            c.env.DB,
+            "INSERT INTO user_profiles (user_id, friend_code, display_name) VALUES (?, ?, ?)",
+            userId,
+            friendCode,
+            email.split("@")[0] || "Usuario"
+          );
+          profileCreated = true;
+          break;
+        } catch (e) {
+          console.error("[Auth] register: PROFILE_INSERT_FAILED", e);
+          return c.json({ error: "PROFILE_INSERT_FAILED", message: "Error al crear el perfil de usuario." }, 500);
+        }
       }
       attempts++;
       friendCode = generateFriendCode(userId + attempts.toString());
     }
 
-    // Generar token de verificación de correo (envío de email fuera de este scope)
+    if (!profileCreated) {
+      console.error("[Auth] register: FRIEND_CODE_EXHAUSTED", { userId });
+      return c.json(
+        { error: "FRIEND_CODE_EXHAUSTED", message: "No se pudo generar un código de amigo único. Inténtalo de nuevo." },
+        500
+      );
+    }
+
+    // Paso 8: Generar token de verificación de correo (envío de email fuera de este scope)
     const emailToken = crypto.randomUUID();
     const emailTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24h
-
-    await run(
-      c.env.DB,
-      `
+    try {
+      await run(
+        c.env.DB,
+        `
     INSERT INTO email_verification_tokens (user_id, token, expires_at)
     VALUES (?, ?, ?)
     `,
-      userId,
-      emailToken,
-      emailTokenExpires
-    );
+        userId,
+        emailToken,
+        emailTokenExpires
+      );
+    } catch (e) {
+      console.error("[Auth] register: VERIFICATION_TOKEN_FAILED", e);
+      return c.json({ error: "VERIFICATION_TOKEN_FAILED", message: "Error al generar el token de verificación." }, 500);
+    }
 
     console.log("[Auth] register: created user and email verification token", {
       userId,
