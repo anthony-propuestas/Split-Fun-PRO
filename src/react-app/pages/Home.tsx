@@ -1,131 +1,103 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router";
-import { ArrowRight, Users, Receipt, PieChart, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/react-app/components/ui/button";
 import { useAuth } from "@/react-app/context/AuthContext";
+
+import InteractiveBackground from "./landing/InteractiveBackground";
+import HeroSection from "./landing/HeroSection";
+import HowItWorksSection from "./landing/HowItWorksSection";
+import GamificationSection from "./landing/GamificationSection";
+import CTASection from "./landing/CTASection";
 
 export default function HomePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const handleGetStarted = useCallback(() => {
-    navigate("/register");
-  }, [navigate]);
 
-  const goToDashboard = () => navigate("/dashboard");
+  const handleGetStarted = useCallback(() => navigate("/register"), [navigate]);
+  const handleLogin = useCallback(() => navigate("/login"), [navigate]);
+  const goToDashboard = useCallback(() => navigate("/dashboard"), [navigate]);
 
   return (
-    <div className="min-h-screen bg-onyx flex flex-col relative overflow-hidden">
-      {/* Aurora background effect */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute -top-1/2 -left-1/4 w-full h-full bg-gradient-radial from-iridescent-green/15 via-transparent to-transparent animate-aurora-pulse" />
-        <div className="absolute -top-1/4 -right-1/4 w-full h-full bg-gradient-radial from-iridescent-blue/15 via-transparent to-transparent animate-aurora-pulse" style={{ animationDelay: "-3s" }} />
-        <div className="absolute -bottom-1/4 left-1/4 w-full h-full bg-gradient-radial from-iridescent-pink/10 via-transparent to-transparent animate-aurora-pulse" style={{ animationDelay: "-5s" }} />
-      </div>
+    <div className="min-h-screen bg-onyx text-foreground relative">
+      <InteractiveBackground />
 
-      {/* Header */}
-      <header className="border-b border-white/10 relative z-10">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <img src="https://019c8165-c866-7049-81dc-366b06644ca0.mochausercontent.com/1000068568.png" alt="Split Fun" className="w-14 h-14" />
-            <span className="text-3xl font-bold text-iridescent">Split Fun</span>
-          </div>
+      {/* Fixed header */}
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-onyx/80 backdrop-blur-md">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {user ? (
-              <Button onClick={goToDashboard} className="btn-iridescent">
-                Ir al Dashboard
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            ) : (
-              <>
-                <Button
-                  variant="ghost"
-                  className="text-muted-foreground hover:text-foreground hover:bg-white/5"
-                  onClick={handleGetStarted}
-                >
-                  Más información
-                </Button>
-              </>
-            )}
+            <img
+              src="https://019c8165-c866-7049-81dc-366b06644ca0.mochausercontent.com/1000068568.png"
+              alt="Split Fun"
+              className="w-9 h-9"
+            />
+            <span className="text-xl font-bold text-iridescent">Split Fun</span>
           </div>
+
+          {user ? (
+            <Button onClick={goToDashboard} size="sm" className="btn-iridescent">
+              Ir al Dashboard
+              <ArrowRight className="w-4 h-4 ml-1" />
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogin}
+                className="text-muted-foreground hover:text-foreground hover:bg-white/5"
+              >
+                Entrar
+              </Button>
+              <Button size="sm" onClick={handleGetStarted} className="btn-iridescent">
+                Registro gratis
+              </Button>
+            </div>
+          )}
         </div>
       </header>
 
-      {/* Hero */}
-      <main className="flex-1 flex items-center justify-center px-4 py-16 relative z-10">
-        <div className="max-w-4xl mx-auto text-center space-y-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card text-sm text-muted-foreground">
-            <Sparkles className="w-4 h-4 text-gold" />
-            División de gastos simple y elegante
-          </div>
-
-          <h1 className="text-4xl md:text-6xl font-bold text-foreground leading-tight">
-            Divide gastos sin{" "}
-            <span className="text-iridescent">complicaciones</span>
-          </h1>
-
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-            Olvídate de las hojas de cálculo y los mensajes interminables. Gestiona gastos compartidos con amigos, familia o compañeros de forma clara y sencilla.
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            {user ? (
-              <Button size="lg" onClick={goToDashboard} className="btn-iridescent px-8 glow-iridescent">
-                Entrar a mi cuenta
+      {/* Page content — offset for fixed header (~61px) */}
+      <main className="pt-[61px]">
+        {user ? (
+          /* Already logged in — simple redirect prompt */
+          <div className="min-h-[calc(100svh-61px)] flex items-center justify-center px-4">
+            <div className="text-center space-y-6">
+              <div className="text-6xl">👋</div>
+              <h1 className="text-3xl font-bold text-foreground">¡Ya estás dentro!</h1>
+              <p className="text-muted-foreground">Tu cuenta Split Fun está esperando.</p>
+              <Button
+                onClick={goToDashboard}
+                className="btn-iridescent glow-iridescent px-8"
+                size="lg"
+              >
+                Ir al Dashboard
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
-            ) : (
-              <>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-white/10 bg-white/5 hover:bg-white/10"
-                  onClick={handleGetStarted}
-                >
-                  Ver más ventajas
-                </Button>
-              </>
-            )}
-          </div>
-
-          {/* Features */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-16">
-            <div className="p-6 rounded-2xl glass-card">
-              <div className="w-12 h-12 rounded-xl bg-iridescent-green/10 flex items-center justify-center mb-4">
-                <Users className="w-6 h-6 text-iridescent-green" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-2">Grupos ilimitados</h3>
-              <p className="text-sm text-muted-foreground">
-                Crea grupos para cada ocasión: hogar, viajes, parejas, amigos...
-              </p>
-            </div>
-
-            <div className="p-6 rounded-2xl glass-card">
-              <div className="w-12 h-12 rounded-xl bg-iridescent-blue/10 flex items-center justify-center mb-4">
-                <Receipt className="w-6 h-6 text-iridescent-blue" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-2">División flexible</h3>
-              <p className="text-sm text-muted-foreground">
-                Divide por partes iguales, porcentajes o montos exactos.
-              </p>
-            </div>
-
-            <div className="p-6 rounded-2xl glass-card">
-              <div className="w-12 h-12 rounded-xl bg-iridescent-pink/10 flex items-center justify-center mb-4">
-                <PieChart className="w-6 h-6 text-iridescent-pink" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-2">Balances claros</h3>
-              <p className="text-sm text-muted-foreground">
-                Ve quién debe a quién de un vistazo. Sin confusiones.
-              </p>
             </div>
           </div>
-        </div>
+        ) : (
+          <>
+            <HeroSection onGetStarted={handleGetStarted} onLogin={handleLogin} />
+            <HowItWorksSection />
+            <GamificationSection />
+            <CTASection onGetStarted={handleGetStarted} />
+          </>
+        )}
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-6 relative z-10">
-        <div className="max-w-6xl mx-auto px-4 text-center text-sm text-muted-foreground">
-          © 2024 Split Fun. Divide gastos sin drama.
+      <footer className="relative z-10 border-t border-white/5 py-8 px-4">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <img
+              src="https://019c8165-c866-7049-81dc-366b06644ca0.mochausercontent.com/1000068568.png"
+              alt="Split Fun"
+              className="w-5 h-5 opacity-70"
+            />
+            <span className="font-medium">Split Fun</span>
+          </div>
+          <p>© 2024 Split Fun · Divide gastos sin dividir amistades.</p>
         </div>
       </footer>
     </div>

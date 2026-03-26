@@ -334,3 +334,60 @@
   transform: translateZ(0);
   will-change: transform;
 }
+
+/* ===== Landing Page ===== */
+
+/* Scroll reveal system */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-reveal].revealed {
+  opacity: 1;
+  transform: none;
+}
+
+/* Hero staggered entry */
+@keyframes hero-entry {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hero-animate {
+  opacity: 0;
+  animation: hero-entry 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Ambient blob drifting for landing background */
+@keyframes blob-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40%       { transform: translate(4%, -5%) scale(1.06); }
+  70%       { transform: translate(-3%, 2%) scale(0.97); }
+}
+
+@keyframes blob-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  30%       { transform: translate(-5%, 4%) scale(1.04); }
+  65%       { transform: translate(3%, -3%) scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .hero-animate {
+    opacity: 1;
+    animation: none;
+  }
+}
