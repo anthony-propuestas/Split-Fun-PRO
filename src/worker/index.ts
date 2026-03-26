@@ -1110,6 +1110,17 @@ app.post("/api/groups/:id/members", authMiddleware, async (c) => {
     return c.json({ error: "Member name is required" }, 400);
   }
 
+  // Prevent duplicate registered members
+  if (body.user_id) {
+    const existing = await c.env.DB.prepare(`
+      SELECT id FROM group_members WHERE group_id = ? AND user_id = ?
+    `).bind(groupId, body.user_id).first();
+
+    if (existing) {
+      return c.json({ error: "Este usuario ya es miembro del grupo" }, 409);
+    }
+  }
+
   const result = await c.env.DB.prepare(`
     INSERT INTO group_members (group_id, user_id, name, email, is_registered)
     VALUES (?, ?, ?, ?, ?)
@@ -1547,6 +1558,69 @@ app.get("/api/my-debts", authMiddleware, async (c) => {
   return c.json(debts);
 });
 
+// ============ IMAGE UPLOAD / SERVE ============
+
+function getContentTypeFromKey(key: string): string {
+  const ext = key.split(".").pop()?.toLowerCase();
+  const types: Record<string, string> = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    gif: "image/gif",
+    webp: "image/webp",
+  };
+  return types[ext || ""] || "application/octet-stream";
+}
+
+// Upload an image to R2 and return its serving URL
+app.post("/api/upload/image", authMiddleware, async (c) => {
+  const formData = await c.req.formData();
+  const file = formData.get("image") as File | null;
+
+  if (!file) {
+    return c.json({ error: "No image provided" }, 400);
+  }
+
+  const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+  if (!allowedTypes.includes(file.type)) {
+    return c.json({ error: "Tipo de archivo no válido. Solo JPEG, PNG, GIF, WEBP" }, 400);
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    return c.json({ error: "Imagen demasiado grande. Máximo 5MB" }, 400);
+  }
+
+  const ext = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
+  const key = `meme-${crypto.randomUUID()}.${ext}`;
+
+  const buffer = await file.arrayBuffer();
+  await (c.env.R2_BUCKET as any).put(key, buffer, {
+    httpMetadata: { contentType: file.type },
+  });
+
+  return c.json({ url: `/api/images/${key}` }, 201);
+});
+
+// Serve an image from R2
+app.get("/api/images/:key", async (c) => {
+  const key = c.req.param("key");
+  const object = await (c.env.R2_BUCKET as any).get(key);
+
+  if (!object) {
+    return c.json({ error: "Imagen no encontrada" }, 404);
+  }
+
+  const contentType =
+    object.httpMetadata?.contentType || getContentTypeFromKey(key);
+
+  return new Response(object.body, {
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=31536000",
+    },
+  });
+});
+
 // ============ PAYMENT REMINDERS API (Don Barriga) ============
 
 // Send a payment reminder
@@ -1582,7 +1656,7 @@ app.post("/api/payment-reminders", authMiddleware, async (c) => {
     user.id,
     toMember?.user_id || null,
     body.amount,
-    body.meme_url || "https://019c8165-c866-7049-81dc-366b06644ca0.mochausercontent.com/meme.jpg",
+    body.meme_url || null,
     body.message || "¡Te vine a cobrar la renta!"
   ).run();
 

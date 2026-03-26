@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router";
-import { ArrowLeft, Plus, UserPlus, Trash2, Receipt, X, Search, ArrowRight, Wallet, Users, Bell } from "lucide-react";
+import { ArrowLeft, Plus, UserPlus, Trash2, Receipt, X, Search, ArrowRight, Wallet, Users, Bell, ImagePlus } from "lucide-react";
 import { useAuth } from "@/react-app/context/AuthContext";
 import { Button } from "@/react-app/components/ui/button";
 import { Input } from "@/react-app/components/ui/input";
@@ -102,6 +102,11 @@ export default function GroupDetail() {
   // Payment reminder state
   const [sendingReminder, setSendingReminder] = useState<number | null>(null);
   const [sentReminders, setSentReminders] = useState<Set<number>>(new Set());
+  const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
+  const [reminderSettlement, setReminderSettlement] = useState<Settlement | null>(null);
+  const [reminderImageFile, setReminderImageFile] = useState<File | null>(null);
+  const [reminderImagePreview, setReminderImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const fetchGroup = async () => {
     try {
@@ -303,34 +308,67 @@ export default function GroupDetail() {
     }
   };
 
-  const sendPaymentReminder = async (settlement: Settlement) => {
-    // settlement.from = debtor (person who owes money, receives the reminder)
-    // settlement.to = creditor (person who is owed, sends the reminder - current user)
+  const openReminderDialog = (settlement: Settlement) => {
     const debtorMember = group?.members.find(m => m.id === settlement.from);
-    
     if (!debtorMember || !debtorMember.user_id) {
       alert("Solo puedes enviar recordatorios a usuarios registrados");
       return;
     }
-    
-    setSendingReminder(settlement.from);
+    setReminderSettlement(settlement);
+    setReminderImageFile(null);
+    setReminderImagePreview(null);
+    setReminderDialogOpen(true);
+  };
+
+  const handleReminderImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReminderImageFile(file);
+    setReminderImagePreview(URL.createObjectURL(file));
+  };
+
+  const sendPaymentReminder = async () => {
+    if (!reminderSettlement) return;
+    setSendingReminder(reminderSettlement.from);
     try {
+      let memeUrl: string | undefined;
+
+      if (reminderImageFile) {
+        setUploadingImage(true);
+        const formData = new FormData();
+        formData.append("image", reminderImageFile);
+        const uploadRes = await fetch("/api/upload/image", {
+          method: "POST",
+          body: formData,
+        });
+        setUploadingImage(false);
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          memeUrl = uploadData.url;
+        }
+      }
+
+      const body: Record<string, unknown> = {
+        group_id: Number(id),
+        to_member_id: reminderSettlement.from,
+        amount: reminderSettlement.amount,
+      };
+      if (memeUrl) body.meme_url = memeUrl;
+
       const res = await fetch("/api/payment-reminders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          group_id: Number(id),
-          to_member_id: settlement.from, // Send reminder TO the debtor
-          amount: settlement.amount,
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Failed to send reminder");
-      setSentReminders(prev => new Set(prev).add(settlement.from));
+      setSentReminders(prev => new Set(prev).add(reminderSettlement.from));
+      setReminderDialogOpen(false);
     } catch (error) {
       console.error("Error sending payment reminder:", error);
       alert("Error al enviar el recordatorio");
     } finally {
       setSendingReminder(null);
+      setUploadingImage(false);
     }
   };
 
@@ -659,20 +697,15 @@ export default function GroupDetail() {
                       {isCurrentUserCreditor && (
                         <Button
                           size="sm"
-                          onClick={() => sendPaymentReminder(settlement)}
-                          disabled={sendingReminder === settlement.from || sentReminders.has(settlement.from)}
-                          className={sentReminders.has(settlement.from) 
+                          onClick={() => openReminderDialog(settlement)}
+                          disabled={sentReminders.has(settlement.from)}
+                          className={sentReminders.has(settlement.from)
                             ? "bg-amber-600/20 text-amber-400 border border-amber-500/30 cursor-default"
                             : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30"
                           }
                         >
                           <Bell className="w-3 h-3 mr-1" />
-                          {sendingReminder === settlement.from 
-                            ? "Enviando..." 
-                            : sentReminders.has(settlement.from) 
-                              ? "Enviado ✓" 
-                              : "Recordar pago"
-                          }
+                          {sentReminders.has(settlement.from) ? "Enviado ✓" : "Recordar pago"}
                         </Button>
                       )}
                     </div>
@@ -741,6 +774,68 @@ export default function GroupDetail() {
                   className="w-full btn-iridescent glow-iridescent"
                 >
                   {settling ? "Registrando..." : "Registrar pago"}
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Reminder Dialog */}
+        <Dialog open={reminderDialogOpen} onOpenChange={setReminderDialogOpen}>
+          <DialogContent className="glass-card border-white/20">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-amber-400" />
+                Enviar recordatorio de pago
+              </DialogTitle>
+            </DialogHeader>
+            {reminderSettlement && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                  <p className="text-sm text-muted-foreground">
+                    Recordatorio para <span className="font-medium text-foreground">{reminderSettlement.fromName}</span>
+                  </p>
+                  <p className="font-bold text-amber-400 text-lg">${reminderSettlement.amount.toFixed(2)}</p>
+                </div>
+
+                {/* Image upload */}
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Imagen personalizada (opcional)</Label>
+                  {reminderImagePreview ? (
+                    <div className="relative rounded-xl overflow-hidden">
+                      <img
+                        src={reminderImagePreview}
+                        alt="Vista previa"
+                        className="w-full h-40 object-cover"
+                      />
+                      <button
+                        onClick={() => { setReminderImageFile(null); setReminderImagePreview(null); }}
+                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white hover:bg-black/80"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center gap-2 h-32 rounded-xl border-2 border-dashed border-white/20 bg-white/5 hover:bg-white/10 cursor-pointer transition-colors">
+                      <ImagePlus className="w-7 h-7 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Toca para subir una imagen</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        className="hidden"
+                        onChange={handleReminderImageSelect}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                <Button
+                  onClick={sendPaymentReminder}
+                  disabled={sendingReminder === reminderSettlement.from || uploadingImage}
+                  className="w-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30"
+                >
+                  <Bell className="w-4 h-4 mr-2" />
+                  {uploadingImage ? "Subiendo imagen..." : sendingReminder ? "Enviando..." : "Enviar recordatorio"}
                 </Button>
               </div>
             )}

@@ -28,6 +28,7 @@ export default function DonBarriga() {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
 
+
   const fetchReminders = async () => {
     try {
       const res = await fetch("/api/payment-reminders");
@@ -156,12 +157,16 @@ export default function DonBarriga() {
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-muted-foreground mb-1">Toca para ver</p>
-                    <div className="w-10 h-10 rounded-lg bg-white/10 overflow-hidden">
-                      <img
-                        src={reminder.meme_url}
-                        alt=""
-                        className="w-full h-full object-cover opacity-60"
-                      />
+                    <div className="w-10 h-10 rounded-lg bg-white/10 overflow-hidden flex items-center justify-center">
+                      {reminder.meme_url ? (
+                        <img
+                          src={reminder.meme_url}
+                          alt=""
+                          className="w-full h-full object-cover opacity-60"
+                        />
+                      ) : (
+                        <span className="text-xl">🏠</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -198,46 +203,33 @@ export default function DonBarriga() {
                   <X className="w-5 h-5" />
                 </button>
 
-                {/* Loading state */}
-                {!imageLoaded && !imageError && (
-                  <div className="flex items-center justify-center h-64 bg-neutral-900">
-                    <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                {/* Meme image or placeholder */}
+                {selectedReminder.meme_url ? (
+                  <>
+                    {!imageLoaded && !imageError && (
+                      <div className="flex items-center justify-center h-64 bg-neutral-900">
+                        <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                    {imageError && (
+                      <div className="flex flex-col items-center justify-center h-48 bg-neutral-900 text-white">
+                        <span className="text-5xl mb-2">🏠</span>
+                        <p className="text-sm text-white/50">No se pudo cargar la imagen</p>
+                      </div>
+                    )}
+                    <img
+                      src={selectedReminder.meme_url}
+                      alt="Don Barriga meme"
+                      className={`w-full h-auto ${imageLoaded ? "block" : "hidden"}`}
+                      onLoad={() => setImageLoaded(true)}
+                      onError={() => setImageError(true)}
+                    />
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center h-48 bg-neutral-900">
+                    <span className="text-7xl">🏠</span>
                   </div>
                 )}
-
-                {/* Error state */}
-                {imageError && (
-                  <div className="flex flex-col items-center justify-center h-64 bg-neutral-900 text-white">
-                    <span className="text-4xl mb-2">😢</span>
-                    <p>No se pudo cargar la imagen</p>
-                    <p className="text-xs text-white/50 mt-2 max-w-xs text-center break-all">
-                      {selectedReminder.meme_url}
-                    </p>
-                  </div>
-                )}
-
-                {/* Meme image - hardcode the known working URL */}
-                <img
-                  src="https://019c8165-c866-7049-81dc-366b06644ca0.mochausercontent.com/meme.jpg"
-                  alt="Don Barriga meme"
-                  crossOrigin="anonymous"
-                  referrerPolicy="no-referrer"
-                  loading="eager"
-                  decoding="sync"
-                  className={`w-full h-auto ${imageLoaded ? 'block' : 'hidden'}`}
-                  onLoad={() => setImageLoaded(true)}
-                  onError={(e) => {
-                    console.error("Image load failed, trying without CORS");
-                    // Try again without crossOrigin
-                    const img = e.currentTarget;
-                    if (img.crossOrigin) {
-                      img.crossOrigin = "";
-                      img.src = "https://019c8165-c866-7049-81dc-366b06644ca0.mochausercontent.com/meme.jpg?" + Date.now();
-                    } else {
-                      setImageError(true);
-                    }
-                  }}
-                />
 
                 {/* Message overlay */}
                 <div className="bg-gradient-to-t from-black via-black/95 to-transparent p-6">
