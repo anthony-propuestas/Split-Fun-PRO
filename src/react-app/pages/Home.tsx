@@ -1,5 +1,5 @@
-import { useCallback } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/react-app/components/ui/button";
 import { useAuth } from "@/react-app/context/AuthContext";
@@ -9,14 +9,30 @@ import HeroSection from "./landing/HeroSection";
 import HowItWorksSection from "./landing/HowItWorksSection";
 import GamificationSection from "./landing/GamificationSection";
 import CTASection from "./landing/CTASection";
+import AuthModal from "./landing/AuthModal";
 
 export default function HomePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const handleGetStarted = useCallback(() => navigate("/register"), [navigate]);
-  const handleLogin = useCallback(() => navigate("/login"), [navigate]);
-  const goToDashboard = useCallback(() => navigate("/dashboard"), [navigate]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"login" | "register">("register");
+
+  // Abrir modal automáticamente si venimos de un redirect con state (e.g. /login → /)
+  useEffect(() => {
+    const state = location.state as { modal?: string } | null;
+    if (state?.modal === "login" || state?.modal === "register") {
+      setModalMode(state.modal as "login" | "register");
+      setModalOpen(true);
+      // Limpiar el state de la URL sin provocar un re-render
+      window.history.replaceState({}, "", "/");
+    }
+  }, []); // solo al montar
+
+  const handleGetStarted = () => { setModalMode("register"); setModalOpen(true); };
+  const handleLogin      = () => { setModalMode("login");    setModalOpen(true); };
+  const goToDashboard    = () => navigate("/dashboard");
 
   return (
     <div className="min-h-screen bg-onyx text-foreground relative">
@@ -100,6 +116,13 @@ export default function HomePage() {
           <p>© 2024 Split Fun · Divide gastos sin dividir amistades.</p>
         </div>
       </footer>
+
+      {/* Auth modal — controlado desde este componente */}
+      <AuthModal
+        open={modalOpen}
+        initialMode={modalMode}
+        onClose={() => setModalOpen(false)}
+      />
     </div>
   );
 }

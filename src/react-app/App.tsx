@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
 import { AuthProvider } from "@/react-app/context/AuthContext";
 import ProtectedRoute from "@/react-app/components/ProtectedRoute";
 import OfflineIndicator from "@/react-app/components/OfflineIndicator";
@@ -7,9 +7,6 @@ import NativeWrapper from "@/react-app/components/NativeWrapper";
 
 // Lazy load pages for faster initial load
 const HomePage = lazy(() => import("@/react-app/pages/Home"));
-const Register = lazy(() => import("@/react-app/pages/Register"));
-const LoginPage = lazy(() => import("@/react-app/pages/Login"));
-const ForgotPasswordPage = lazy(() => import("@/react-app/pages/ForgotPassword"));
 const ResetPasswordPage = lazy(() => import("@/react-app/pages/ResetPassword"));
 const VerifyEmailPage = lazy(() => import("@/react-app/pages/VerifyEmail"));
 const Dashboard = lazy(() => import("@/react-app/pages/Dashboard"));
@@ -44,9 +41,9 @@ export default function App() {
             <Routes>
             {/* Public routes */}
             <Route path="/" element={<HomePage />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/register" element={<Navigate to="/" replace state={{ modal: "register" }} />} />
+            <Route path="/login" element={<Navigate to="/" replace state={{ modal: "login" }} />} />
+            <Route path="/forgot-password" element={<Navigate to="/" replace state={{ modal: "login" }} />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
 
