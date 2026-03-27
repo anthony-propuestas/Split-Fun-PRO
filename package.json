@@ -43,7 +43,7 @@
   "scripts": {
     "build": "tsc -b && vite build && npm run build:worker",
     "build:worker": "esbuild src/worker/index.ts --bundle --target=es2022 --format=esm --outfile=dist/_worker.js",
-    "postbuild": "node -e \"const fs=require('fs'); fs.rmSync('dist/wrangler.json', {force:true}); fs.rmSync('.wrangler/deploy/config.json', {force:true});\"",
+    "postbuild": "node -e \"const fs=require('fs'); fs.rmSync('dist/wrangler.json', {force:true}); fs.rmSync('.wrangler/deploy/config.json', {force:true});\" && node scripts/update-sw-version.cjs",
     "cf-typegen": "wrangler types",
     "check": "npm run build && wrangler pages deploy dist",
     "deploy": "npm run build && wrangler pages deploy dist",
