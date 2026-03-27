@@ -32,9 +32,14 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests - never intercept
   if (request.method !== 'GET') return;
 
+  // Skip cross-origin requests - only handle same-origin
+  if (url.origin !== self.location.origin) return;
+
   // API requests: always go to network, never serve from cache
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(fetch(request));
+    event.respondWith(
+      fetch(request).catch(() => new Response('', { status: 503 }))
+    );
     return;
   }
 
@@ -63,15 +68,17 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2|ico|webp)$/)) {
     event.respondWith(
       caches.match(request).then((cached) => {
-        const fetchPromise = fetch(request).then((response) => {
-          if (response.ok) {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
-            });
-          }
-          return response;
-        });
+        const fetchPromise = fetch(request)
+          .then((response) => {
+            if (response.ok) {
+              const responseClone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(request, responseClone);
+              });
+            }
+            return response;
+          })
+          .catch(() => cached || new Response('', { status: 503 }));
         return cached || fetchPromise;
       })
     );
@@ -79,5 +86,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Default: network only
-  event.respondWith(fetch(request));
+  event.respondWith(
+    fetch(request).catch(() => new Response('', { status: 503 }))
+  );
 });
